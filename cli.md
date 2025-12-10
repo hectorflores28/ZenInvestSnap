@@ -1,5 +1,6 @@
 ### 1\. Preparación del Entorno
 
+
 ```bash
 # Crear el entorno virtual
 python -m venv venv

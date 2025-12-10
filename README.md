@@ -1,5 +1,6 @@
 # 📈 ZenInvestSnap: Seguimiento de Inversiones Automatizado con Django
 
+
 ## Descripción
 ZenInvestSnap es un sistema de seguimiento de portafolio de inversiones diseñado para ofrecer una visión diaria, clara y sin estrés (Zen) del estado de tus activos financieros. Utilizando la potencia de **Django** y **Python**, el proyecto automatiza la captura de precios de mercado y el cálculo de la rentabilidad diaria.
 
