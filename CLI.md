@@ -25,6 +25,16 @@ nano .env
 # o 'code .env' si usas VS Code
 ```
 
+python -m django startproject zen_invest_snap
+
+cd zen_invest_snap
+
+python manage.py startapp main \
+    && python manage.py startapp gbm \
+    && python manage.py startapp mercado_pago \
+    && python manage.py startapp nu \
+    && python manage.py startapp bitso
+
 ### 2\. Configuración Inicial de Django
 
 ```bash
@@ -36,6 +46,8 @@ python manage.py migrate
 
 # Crear un usuario administrador
 python manage.py createsuperuser
+
+# Hfl0r3s!
 
 # Cargar los activos iniciales (tickers) si el archivo existe
 python manage.py loaddata initial_assets.json
