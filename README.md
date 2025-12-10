@@ -1,77 +1,37 @@
-# ZenInvestSnap
-¡Excelente idea de proyecto\! Dada tu experiencia en **Django** y tu interés en el análisis de datos (como se ve en tu proyecto `django-strava-analytics-dashboard`), un sistema de seguimiento de inversiones automatizado es un ajuste perfecto.
+# 📈 ZenInvestSnap: Seguimiento de Inversiones Automatizado con Django
 
-Aquí tienes una propuesta de nombre y una estructura técnica detallada para tu proyecto.
+## Descripción
+ZenInvestSnap es un sistema de seguimiento de portafolio de inversiones diseñado para ofrecer una visión diaria, clara y sin estrés (Zen) del estado de tus activos financieros. Utilizando la potencia de **Django** y **Python**, el proyecto automatiza la captura de precios de mercado y el cálculo de la rentabilidad diaria.
 
-## 💡 Idea de Nombre para el Proyecto
+## ✨ Enfoque y Metas del Proyecto
 
-Busco un nombre que sea profesional, que refleje el aspecto financiero (Zen/Finanzas) y el toque tecnológico (Datos/Automatización).
+### Enfoque
+El enfoque principal es la **automatización** y la **claridad de los datos**. En lugar de depender de hojas de cálculo o cálculos manuales, ZenInvestSnap utiliza un **Django Management Command** que se ejecuta diariamente (via `cron`) para asegurar que todos los datos y métricas estén actualizados y listos para su visualización.
 
-  * **ZenInvestSnap**
-      * Combina **Zen** (calma, control), **Invest** (inversión) y **Snap** (por "snapshot" diario). Sugiere una visión clara y sin estrés de tus finanzas.
-  * **AuraFinance**
-      * "Aura" sugiere una visión completa y un resumen del estado de tus inversiones.
-  * **PyPortfolio**
-      * Simple, directo y resalta el uso de **Python** para gestionar tu **Portafolio**.
+### Metas Clave
+1. **Snapshots Diarios Confiables:** Registrar el precio de cierre de cada activo y el valor total del portafolio al final del día.
+2. **Visualización de Rentabilidad:** Mostrar claramente la métrica clave: la comparación del **Valor de Mercado Actual** frente al **Valor Total Invertido** (con un indicador visual Semáforo).
+3. **Mantenimiento Simple:** Usar la estructura robusta de Django (Modelos, ORM, Management Commands) para un sistema escalable y de bajo mantenimiento.
 
------
+## 🛠️ Estructura Técnica
 
-## 🏗️ Estructura y Componentes Clave del Proyecto Django
+El sistema se basa en cuatro modelos clave: `Asset`, `Transaction`, `DailySnapshot` (el precio diario de cada activo), y `PortfolioValue` (el resumen diario del portafolio).
 
-Tu enfoque de **cron** y **scripts de pasos secuenciales** es perfecto para este tipo de proyecto.
-
-### 1\. Modelos de Base de Datos (Django Models)
-
-Necesitarás modelos para rastrear tus activos, las transacciones que realizaste, y los valores diarios.
-
-| Modelo | Descripción | Campos Clave |
-| :--- | :--- | :--- |
-| **Asset** | El activo financiero (ej. GOOGL, S\&P 500 ETF, CETE). | `ticker` (clave), `name`, `type` (Acción, ETF, Cripto, etc.). |
-| **Transaction** | Registro de cuándo y cuánto invertiste. | `asset` (FK), `date`, `type` (Compra/Venta), `shares`, `price_per_share`, `total_amount`. |
-| **DailySnapshot** | **El corazón del proyecto.** Captura el valor del activo un día concreto. | `asset` (FK), `date`, `current_price`, `value_at_close`. |
-| **PortfolioValue** | Registro global de tu portafolio en un día. | `date`, `total_invested`, `current_market_value`, `daily_profit_loss`, `overall_profit_loss`. |
-
------
-
-### 2\. La Rutina de Ejecución Diaria (`cron` / `run_all.py`)
-
-En lugar de múltiples archivos `.py` ejecutados por un script externo (`run_all.py`), en Django, el método más robusto es usar un **Django Management Command**. Esto te da acceso directo al entorno de Django, a los modelos y al ORM.
-
-#### A. Management Command (`management/commands/run_daily_snapshot.py`)
-
-Este será el único script que tu `cron` llamará:
-
+La rutina diaria se ejecuta con un único comando para garantizar la atomicidad de los datos:
 ```bash
 python manage.py run_daily_snapshot
 ```
 
-#### B. La Lógica Secuencial Interna
+## 🤝 Contribución
 
-El Management Command puede encapsular tus "steps" en una secuencia lógica:
+¡Las contribuciones son bienvenidas\! Si deseas mejorar la precisión de los cálculos, integrar nuevas APIs financieras o proponer mejoras al Dashboard, sigue los siguientes pasos:
 
-| Archivo / Clase | Tu "Step" | Función |
-| :--- | :--- | :--- |
-| `step1_fetch_data.py` | **`step1.py`...** | **Obtención de Datos:** Llama a APIs de finanzas (Yahoo Finance, Alpha Vantage, etc.) para obtener el precio de cierre (`current_price`) de *todos* los **Assets** en tu portafolio. Guarda estos datos en la tabla **DailySnapshot**. |
-| `step2_calculate_value.py` | **`stepN.py`...** | **Cálculo de Valor:** Para cada **Asset**, calcula el **Valor Actual Total** basándose en: (Acciones que poseo hoy) $\times$ (Precio de cierre de hoy). |
-| `step3_update_portfolio.py` | **`stepN.py`...** | **Consolidación del Portafolio:** Suma todos los valores individuales de los activos para obtener el `current_market_value` global del día. Calcula el `overall_profit_loss` y guarda el registro en **PortfolioValue**. |
+1.  Haz *fork* del repositorio.
+2.  Crea una rama para tu *feature* (`git checkout -b feature/nombre-de-tu-feature`).
+3.  *Commit* tus cambios (`git commit -m 'feat: Descripción breve del cambio'`).
+4.  *Push* a la rama (`git push origin feature/nombre-de-tu-feature`).
+5.  Abre un **Pull Request**.
 
------
+## 📝 Licencia
 
-### 3\. La Interfaz de Usuario (Dashboard)
-
-El dashboard debe mostrar la comparación del valor actual vs. el valor invertido, como solicitas.
-
-#### A. Vistas Clave
-
-  * **Vista de Resumen General:** Muestra el registro más reciente de **PortfolioValue**.
-      * **Métricas:** `Valor Invertido Total`, `Valor de Mercado Actual`, `Ganancia/Pérdida Total` ($ y %).
-      * **Semáforo:** Un indicador grande que refleja el `overall_profit_loss`:
-          * **Verde:** Ganancia (Valor Actual \> Valor Invertido).
-          * **Rojo:** Pérdida (Valor Actual \< Valor Invertido).
-          * **Amarillo:** Cerca de cero (Pérdida/Ganancia menor a $\pm$X%).
-  * **Vista Detalle por Activo:** Para cada **Asset**, muestra la información clave:
-      * **Precio invertido (promedio):** El costo promedio de todas tus transacciones de compra.
-      * **Precio actual (snapshot):** El precio del **DailySnapshot** de hoy.
-      * **Ganancia/Pérdida Individual:** La diferencia marcada con rojo/verde.
-  * **Vista de Transacciones (Registros Aislados):** Una tabla simple que lista todos los registros de la tabla **Transaction** (compras/ventas) aislados.
-
+Este proyecto está bajo la Licencia MIT.
