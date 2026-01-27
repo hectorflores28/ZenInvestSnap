@@ -41,6 +41,11 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    'main',
+    'gbm',
+    'mercado_pago',
+    'nu',
+    'bitso',
 ]
 
 MIDDLEWARE = [
