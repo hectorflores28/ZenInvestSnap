@@ -15,16 +15,76 @@ El enfoque principal es la **automatización** y la **claridad de los datos**. E
 
 ## 🛠️ Estructura Técnica
 
-El sistema se basa en cuatro modelos clave: `Asset`, `Transaction`, `DailySnapshot` (el precio diario de cada activo), y `PortfolioValue` (el resumen diario del portafolio).
+El proyecto está organizado en varias aplicaciones Django para modularidad:
 
-La rutina diaria se ejecuta con un único comando para garantizar la atomicidad de los datos:
+- **main**: Contiene los modelos núcleo (`Asset`, `Transaction`, `DailySnapshot`, `PortfolioValue`) y la lógica central.
+- **gbm**: Integración para obtener datos de GBM.
+- **mercado_pago**: Integración para Mercado Pago.
+- **nu**: Integración para Nu.
+- **bitso**: Integración para Bitso.
+
+### Modelos Principales
+El sistema se basa en cuatro modelos clave (definidos en `main/models.py`):
+- `Asset`: Representa un activo financiero (Stock, Crypto, Fiat, etc.).
+- `Transaction`: Registra compras, ventas, depósitos y retiros.
+- `DailySnapshot`: Almacena el precio de cierre diario de cada activo.
+- `PortfolioValue`: Resumen diario del valor total del portafolio e inversión total.
+
+### Automatización
+La rutina diaria se ejecuta con un único comando:
 ```bash
 python manage.py run_daily_snapshot
+```
+Este comando se encarga de:
+1. Obtener precios actuales de las diferentes fuentes (APIs).
+2. Guardar el snapshot de cada activo.
+3. Calcular y guardar el valor total del portafolio.
+
+## 🚀 Instalación y Configuración
+
+### 1. Preparación del Entorno
+
+Clona el repositorio y navega al directorio del proyecto.
+
+```bash
+# Crear entorno virtual
+python -m venv venv
+
+# Activar entorno virtual
+# Windows:
+venv\Scripts\activate
+# Linux/Mac:
+source venv/bin/activate
+
+# Instalar dependencias
+pip install -r requirements.txt
+```
+
+### 2. Configuración de Variables de Entorno
+
+Crea un archivo `.env` en la raíz del proyecto para tus credenciales y configuración:
+
+```bash
+touch .env
+```
+Agrega tus claves API y configuración de base de datos en el archivo `.env`.
+
+### 3. Configuración de Django
+
+Realiza las migraciones iniciales para crear la estructura de base de datos:
+
+```bash
+cd zen_invest_snap
+python manage.py makemigrations
+python manage.py migrate
+
+# Crear superusuario para administrar el sitio
+python manage.py createsuperuser
 ```
 
 ## 🤝 Contribución
 
-¡Las contribuciones son bienvenidas\! Si deseas mejorar la precisión de los cálculos, integrar nuevas APIs financieras o proponer mejoras al Dashboard, sigue los siguientes pasos:
+¡Las contribuciones son bienvenidas! Si deseas mejorar la precisión de los cálculos, integrar nuevas APIs financieras o proponer mejoras al Dashboard, sigue los siguientes pasos:
 
 1.  Haz *fork* del repositorio.
 2.  Crea una rama para tu *feature* (`git checkout -b feature/nombre-de-tu-feature`).
