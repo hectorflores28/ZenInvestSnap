@@ -33,25 +33,13 @@ def dashboard(request):
             # Get latest snapshot for this asset
             snapshot = asset.daily_snapshots.order_by('-date').first()
             
-            # Calculate Quantity held (simplified logic for view, duplicate of command logic ideally refactored)
-            # For view speed, maybe we should store 'current_quantity' on Asset?
-            # For now, let's recalculate quickly or just show price.
-            # Ideally, the Snapshot contains the value. But Snapshot only has 'closing_price'.
-            # We need Quantity to know the Value.
-            # Let's Calculate Quantity on the fly. available in Transaction.
-            # TODO: Refactor 'get_current_quantity' to model or utils.
+            # Use the latest quantity (Synched or Calculated)
+            qty = asset.latest_quantity
             
-            txs = asset.transactions.all()
-            qty = Decimal('0.0')
-            invested = Decimal('0.0') # Simple sum of buys? Or Avg Cost?
-            # Let's do simple qty sum for now to get value
-            for tx in txs:
-                if tx.action in ['BUY', 'DEPOSIT']:
-                    qty += tx.quantity
-                elif tx.action in ['SELL', 'WITHDRAWAL']:
-                    qty -= tx.quantity
-            
-            if qty < 0: qty = Decimal('0.0') # Should not happen
+            # NOTE regarding 'value':
+            # Option A: Calculate on the fly (Qty * Current Price)
+            # Option B: Use value from Snapshot if snapshot is from TODAY?
+            # Let's calculate on fly to be safe if price updated but snapshot weird
             
             current_price = snapshot.closing_price if snapshot else Decimal('0.0')
             current_value = qty * current_price
