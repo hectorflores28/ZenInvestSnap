@@ -8,12 +8,20 @@ class Asset(models.Model):
         ('ETF', 'ETF'),
         ('BOND', 'Bond'),
     ]
+    SOURCE_CHOICES = [
+        ('GBM', 'GBM'),
+        ('BITSO', 'Bitso'),
+        ('NU', 'Nu'),
+        ('MERCADO_PAGO', 'Mercado Pago'),
+        ('OTHER', 'Other'),
+    ]
     ticker = models.CharField(max_length=20, unique=True, help_text="e.g., AAPL, BTC, MXN")
     name = models.CharField(max_length=100)
     asset_type = models.CharField(max_length=20, choices=ASSET_TYPES)
+    source = models.CharField(max_length=20, choices=SOURCE_CHOICES, default='OTHER')
     
     def __str__(self):
-        return f"{self.ticker} - {self.name}"
+        return f"{self.ticker} - {self.name} ({self.source})"
 
 class Transaction(models.Model):
     ACTIONS = [
