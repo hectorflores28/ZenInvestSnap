@@ -20,6 +20,9 @@ class Asset(models.Model):
     asset_type = models.CharField(max_length=20, choices=ASSET_TYPES)
     source = models.CharField(max_length=20, choices=SOURCE_CHOICES, default='OTHER')
     
+    # Snapshot of the latest known quantity (updated by API or Transactions)
+    latest_quantity = models.DecimalField(max_digits=20, decimal_places=10, default=0.0)
+
     def __str__(self):
         return f"{self.ticker} - {self.name} ({self.source})"
 
