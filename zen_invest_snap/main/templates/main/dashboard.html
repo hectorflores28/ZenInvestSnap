@@ -3,23 +3,24 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ZenInvestSnap | Portfolio Dashboard</title>
+    <title>ZenInvestSnap | Dashboard</title>
     <!-- Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     
     <style>
         :root {
-            --bg-color: #0f172a;
-            --card-bg: #1e293b;
+            --bg-color: #0b0f19;
+            --card-bg: #161c2d;
+            --card-border: rgba(255, 255, 255, 0.08);
             --text-primary: #f8fafc;
             --text-secondary: #94a3b8;
             --accent: #3b82f6;
             --success: #10b981;
             --danger: #ef4444;
             --warning: #f59e0b;
-            --card-border: rgba(255, 255, 255, 0.05);
         }
 
         * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -29,180 +30,240 @@
             background-color: var(--bg-color);
             color: var(--text-primary);
             min-height: 100vh;
-            padding: 2rem;
+            padding: 0;
+            overflow-x: hidden;
         }
 
-        .container {
-            max-width: 1200px;
-            margin: 0 auto;
-        }
-
-        header {
-            margin-bottom: 3rem;
+        .navbar {
             display: flex;
             justify-content: space-between;
             align-items: center;
+            padding: 1rem 2rem;
+            background: rgba(22, 28, 45, 0.8);
+            backdrop-filter: blur(12px);
+            border-bottom: 1px solid var(--card-border);
+            position: sticky;
+            top: 0;
+            z-index: 100;
         }
 
-        h1 { font-weight: 700; font-size: 1.5rem; letter-spacing: -0.025em; }
+        .brand h1 { font-size: 1.25rem; font-weight: 700; }
         .brand span { color: var(--accent); }
+
+        .nav-user {
+            display: flex;
+            align-items: center;
+            gap: 1.5rem;
+        }
+
+        .user-info { font-size: 0.875rem; color: var(--text-secondary); }
+        .logout-btn {
+            font-size: 0.875rem;
+            color: var(--danger);
+            text-decoration: none;
+            padding: 0.4rem 0.8rem;
+            border-radius: 0.5rem;
+            border: 1px solid rgba(239, 68, 68, 0.2);
+            transition: all 0.2s;
+        }
+        .logout-btn:hover { background: rgba(239, 68, 68, 0.1); }
+
+        .container {
+            max-width: 1300px;
+            margin: 2rem auto;
+            padding: 0 2rem;
+        }
 
         .dashboard-grid {
             display: grid;
+            grid-template-columns: repeat(12, 1fr);
             gap: 2rem;
         }
 
-        /* Hero Section - Portfolio Summary */
-        .hero-card {
-            background: linear-gradient(135deg, var(--card-bg) 0%, #1e293b 100%);
+        /* Hero Card */
+        .hero-section {
+            grid-column: span 12;
+            display: grid;
+            grid-template-columns: 1fr 2fr;
+            gap: 2rem;
+        }
+
+        .summary-card {
+            background: linear-gradient(135deg, var(--card-bg) 0%, #1c2539 100%);
             border: 1px solid var(--card-border);
             border-radius: 1.5rem;
-            padding: 2.5rem;
-            text-align: center;
+            padding: 2rem;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
             position: relative;
             overflow: hidden;
-            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
         }
 
-        .hero-card::before {
+        .summary-card::after {
             content: '';
             position: absolute;
-            top: 0; left: 0; right: 0; height: 4px;
-            background: linear-gradient(90deg, var(--accent), var(--success));
+            top: 0; right: 0; width: 100px; height: 100px;
+            background: var(--accent);
+            filter: blur(80px);
+            opacity: 0.1;
         }
 
-        .total-label {
-            color: var(--text-secondary);
-            text-transform: uppercase;
-            letter-spacing: 0.1em;
-            font-size: 0.875rem;
-            margin-bottom: 1rem;
-        }
-
-        .total-value {
-            font-size: 4rem;
-            font-weight: 700;
-            margin-bottom: 0.5rem;
-            background: linear-gradient(to right, #fff, #cbd5e1);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-        }
-
-        .profitability {
-            display: inline-flex;
+        .total-label { font-size: 0.75rem; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.5rem; }
+        .total-value { font-size: 3rem; font-weight: 700; margin-bottom: 1rem; }
+        
+        .sync-row {
+            display: flex;
             align-items: center;
-            padding: 0.5rem 1rem;
-            border-radius: 9999px;
+            gap: 1rem;
+            margin-top: 1.5rem;
+        }
+
+        .btn-sync {
+            background: var(--accent);
+            color: white;
+            border: none;
+            padding: 0.6rem 1.2rem;
+            border-radius: 0.75rem;
             font-weight: 600;
             font-size: 0.875rem;
+            cursor: pointer;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            transition: transform 0.2s;
         }
-        
-        .prof-positive { background: rgba(16, 185, 129, 0.1); color: var(--success); }
-        .prof-negative { background: rgba(239, 68, 68, 0.1); color: var(--danger); }
-        .prof-neutral { background: rgba(148, 163, 184, 0.1); color: var(--text-secondary); }
+        .btn-sync:hover { transform: scale(1.02); }
+
+        .chart-container {
+            background: var(--card-bg);
+            border: 1px solid var(--card-border);
+            border-radius: 1.5rem;
+            padding: 1.5rem;
+            height: 350px;
+        }
 
         /* Sources Grid */
         .sources-grid {
+            grid-column: span 12;
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
             gap: 1.5rem;
-            margin-top: 2rem;
         }
 
         .source-card {
             background: var(--card-bg);
             border: 1px solid var(--card-border);
-            border-radius: 1rem;
+            border-radius: 1.25rem;
             padding: 1.5rem;
-            transition: transform 0.2s, box-shadow 0.2s;
+            transition: all 0.2s;
         }
-
-        .source-card:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
-            border-color: rgba(255, 255, 255, 0.1);
-        }
+        .source-card:hover { border-color: rgba(255,255,255,0.15); transform: translateY(-4px); }
 
         .source-header {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-bottom: 1.5rem;
-            padding-bottom: 1rem;
-            border-bottom: 1px solid rgba(255,255,255,0.05);
+            margin-bottom: 1.25rem;
         }
-
-        .source-title { font-size: 1.125rem; font-weight: 600; }
+        .source-title { font-weight: 600; font-size: 1.1rem; }
         .source-total { font-weight: 700; color: var(--accent); }
 
         .asset-list { list-style: none; }
         .asset-item {
             display: flex;
             justify-content: space-between;
-            align-items: center;
-            padding: 0.5rem 0;
-            font-size: 0.925rem;
+            padding: 0.75rem 0;
+            border-bottom: 1px solid rgba(255,255,255,0.03);
         }
-        
-        .asset-ticker { font-weight: 600; color: var(--text-primary); }
-        .asset-name { font-size: 0.75rem; color: var(--text-secondary); display: block; }
-        .asset-value { font-family: monospace; }
-        
-        .badge {
-            font-size: 0.65rem;
-            padding: 0.1rem 0.4rem;
-            border-radius: 4px;
-            margin-left: 0.5rem;
-            background: rgba(255,255,255,0.1);
-        }
+        .asset-item:last-child { border: none; }
 
-        /* Utils */
-        .empty-state {
-            color: var(--text-secondary);
-            font-style: italic;
-            font-size: 0.875rem;
-            text-align: center;
-            padding: 1rem;
+        .asset-main { display: flex; flex-direction: column; }
+        .asset-ticker { font-weight: 600; font-size: 0.95rem; }
+        .asset-name { font-size: 0.75rem; color: var(--text-secondary); }
+
+        .asset-meta { text-align: right; }
+        .asset-value { font-weight: 600; font-size: 0.95rem; }
+        .asset-price { font-size: 0.7rem; color: var(--text-secondary); }
+
+        .profitability {
+            display: inline-flex;
+            padding: 0.25rem 0.6rem;
+            border-radius: 0.5rem;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+        .prof-positive { background: rgba(16, 185, 129, 0.1); color: var(--success); }
+        .prof-negative { background: rgba(239, 68, 68, 0.1); color: var(--danger); }
+
+        .toast {
+            position: fixed;
+            bottom: 2rem;
+            right: 2rem;
+            padding: 1rem 1.5rem;
+            border-radius: 1rem;
+            background: var(--card-bg);
+            border: 1px solid var(--success);
+            color: var(--success);
+            box-shadow: 0 10px 15px -3px rgba(0,0,0,0.5);
+            z-index: 1000;
         }
     </style>
 </head>
 <body>
+    <nav class="navbar">
+        <div class="brand">
+            <h1>Zen<span>InvestSnap</span></h1>
+        </div>
+        <div class="nav-user">
+            <span class="user-info">Welcome, <strong>{{ user.username }}</strong></span>
+            <form action="{% url 'logout' %}" method="post" style="display:inline;">
+                {% csrf_token %}
+                <button type="submit" class="logout-btn" style="background:none; border:none; cursor:pointer;">Logout</button>
+            </form>
+        </div>
+    </nav>
+
     <div class="container">
-        <header>
-            <div class="brand">
-                <h1>Zen<span>InvestSnap</span></h1>
-            </div>
-            <div style="font-size: 0.875rem; color: var(--text-secondary);">
-                {% now "F j, Y" %}
-            </div>
-        </header>
+        {% if messages %}
+            {% for message in messages %}
+                <div class="toast">{{ message }}</div>
+            {% endfor %}
+        {% endif %}
 
         <div class="dashboard-grid">
-            <!-- Hero Section -->
-            <div class="hero-card">
-                <div class="total-label">Net Portfolio Value</div>
-                <div class="total-value">${{ calculated_total|floatformat:2 }}</div>
-                
-                {% if portfolio %}
-                    <div class="profitability {% if portfolio.profitability_percentage > 0 %}prof-positive{% elif portfolio.profitability_percentage < 0 %}prof-negative{% else %}prof-neutral{% endif %}">
-                        {% if portfolio.profitability_percentage > 0 %}
-                            ▲ +{{ portfolio.profitability_percentage|floatformat:2 }}%
-                        {% elif portfolio.profitability_percentage < 0 %}
-                            ▼ {{ portfolio.profitability_percentage|floatformat:2 }}%
-                        {% else %}
-                            - 0.00%
-                        {% endif %}
-                        <span style="margin-left: 0.5rem; opacity: 0.7;">(All Time)</span>
+            <div class="hero-section">
+                <!-- Summary -->
+                <div class="summary-card">
+                    <div class="total-label">Total Market Value</div>
+                    <div class="total-value">${{ calculated_total|floatformat:2 }}</div>
+                    
+                    {% if portfolio %}
+                        <div class="profitability {% if portfolio.profitability_percentage >= 0 %}prof-positive{% else %}prof-negative{% endif %}">
+                            {% if portfolio.profitability_percentage >= 0 %}▲{% else %}▼{% endif %} 
+                            {{ portfolio.profitability_percentage|floatformat:2 }}%
+                        </div>
+                        <div style="margin-top: 0.5rem; font-size: 0.85rem; color: var(--text-secondary);">
+                            Invested: ${{ portfolio.total_invested|floatformat:2 }}
+                        </div>
+                    {% endif %}
+
+                    <div class="sync-row">
+                        <a href="{% url 'sync_data' %}" class="btn-sync">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21.5 2v6h-6M2.5 22v-6h6M2 12c0-4.4 3.6-8 8-8 3.3 0 6.2 2 7.4 4.9M22 12c0 4.4-3.6 8-8 8-3.3 0-6.2-2-7.4-4.9"/></svg>
+                            Sync Portafolio
+                        </a>
                     </div>
-                    <div style="margin-top: 1rem; font-size: 0.875rem; color: var(--text-secondary);">
-                        Invested: ${{ portfolio.total_invested|floatformat:2 }}
-                    </div>
-                {% else %}
-                     <div class="profitability prof-neutral">No data yet</div>
-                {% endif %}
+                </div>
+
+                <!-- History Chart -->
+                <div class="chart-container">
+                    <canvas id="portfolioChart"></canvas>
+                </div>
             </div>
 
-            <!-- Detailed Sources Grid -->
+            <!-- Detailed Grid -->
             <div class="sources-grid">
                 {% for source in dashboard_data %}
                 <div class="source-card">
@@ -213,19 +274,22 @@
                     
                     <ul class="asset-list">
                         {% for asset in source.assets_detail %}
-                            {% if asset.value > 0 %}
+                            {% if asset.value > 0 or asset.quantity > 0 %}
                             <li class="asset-item">
-                                <div>
+                                <div class="asset-main">
                                     <span class="asset-ticker">{{ asset.ticker }}</span>
                                     <span class="asset-name">{{ asset.name }}</span>
                                 </div>
-                                <div class="asset-value">
-                                    ${{ asset.value|floatformat:2 }}
+                                <div class="asset-meta">
+                                    <div class="asset-value">${{ asset.value|floatformat:2 }}</div>
+                                    <div class="asset-price">{{ asset.quantity|floatformat:4 }} units @ ${{ asset.price|floatformat:2 }}</div>
                                 </div>
                             </li>
                             {% endif %}
                         {% empty %}
-                            <div class="empty-state">No assets found</div>
+                            <div style="text-align: center; color: var(--text-secondary); font-size: 0.85rem; padding: 1rem;">
+                                No assets
+                            </div>
                         {% endfor %}
                     </ul>
                 </div>
@@ -233,5 +297,54 @@
             </div>
         </div>
     </div>
+
+    <script>
+        const ctx = document.getElementById('portfolioChart').getContext('2d');
+        const historyData = [
+            {% for entry in history %}
+            { date: '{{ entry.date|date:"M d" }}', value: {{ entry.total_market_value }} },
+            {% endfor %}
+        ];
+
+        new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: historyData.map(d => d.date),
+                datasets: [{
+                    label: 'Portfolio Value',
+                    data: historyData.map(d => d.value),
+                    borderColor: '#3b82f6',
+                    backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                    borderWidth: 3,
+                    fill: true,
+                    tension: 0.4,
+                    pointRadius: 0
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: false }
+                },
+                scales: {
+                    y: {
+                        grid: { color: 'rgba(255,255,255,0.05)', drawBorder: false },
+                        ticks: { color: '#94a3b8', font: { family: 'Outfit', size: 10 } }
+                    },
+                    x: {
+                        grid: { display: false },
+                        ticks: { color: '#94a3b8', font: { family: 'Outfit', size: 10 } }
+                    }
+                }
+            }
+        });
+        
+        // Hide toast after 4s
+        setTimeout(() => {
+            const toasts = document.querySelectorAll('.toast');
+            toasts.forEach(t => t.style.display = 'none');
+        }, 4000);
+    </script>
 </body>
 </html>
