@@ -86,6 +86,22 @@ def dashboard(request):
             current_price = snapshot.closing_price if snapshot else Decimal('0.0')
             current_value = qty * current_price
             
+            # Calculate Invested per Asset
+            asset_txs = Transaction.objects.filter(asset=asset, user=request.user).order_by('date')
+            asset_qty = Decimal('0.0')
+            asset_cost = Decimal('0.0')
+            for tx in asset_txs:
+                if tx.action in ['BUY', 'DEPOSIT']:
+                    asset_cost += tx.quantity * tx.price
+                    asset_qty += tx.quantity
+                elif tx.action in ['SELL', 'WITHDRAWAL']:
+                    if asset_qty > 0:
+                        avg = asset_cost / asset_qty
+                        asset_cost -= tx.quantity * avg
+                        asset_qty -= tx.quantity
+                    else:
+                        asset_qty -= tx.quantity
+
             source_data['total_value'] += current_value
             
             source_data['assets_detail'].append({
@@ -94,6 +110,7 @@ def dashboard(request):
                 'quantity': qty,
                 'price': current_price,
                 'value': current_value,
+                'invested': asset_cost,
                 'type': asset.asset_type
             })
             
