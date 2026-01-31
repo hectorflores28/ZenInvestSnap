@@ -1,5 +1,31 @@
 # 📈 ZenInvestSnap: Seguimiento de Inversiones Automatizado con Django
 
+zen-invest-snap (directorio proyecto)
+.env
+README.md
+requirements.txt
+
+>
+
+main (directorio app)
+- Layouts (base.html, dashboard.html, login.html, register.html)
+- Models (asset.py, daily_snapshot.py, portfolio_value.py, transaction.py)
+- Views (dashboard.py, login.py, register.py)
+- URLs (urls.py)
+- Logic (calculations.py)
+- run_daily_snapshot.py
+zen_invest_snap (directorio app)
+- providers.py
+bitso (directorio app)
+- provider.py
+gbm (directorio app)
+mercado_pago (directorio app)
+nu (directorio app)
+
+# de aqui para abajo limpiar (despues)
+
+# Necesito ver si hay api's diponibles, si no dejo todo local
+
 ## Descripción
 ZenInvestSnap es un sistema de seguimiento de portafolio de inversiones diseñado para ofrecer una visión diaria, clara y sin estrés (Zen) del estado de tus activos financieros. Utilizando la potencia de **Django** y **Python**, el proyecto automatiza la captura de precios de mercado y el cálculo de la rentabilidad diaria.
 
