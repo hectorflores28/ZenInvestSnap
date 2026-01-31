@@ -6,92 +6,65 @@ ZenInvestSnap es un sistema de seguimiento de portafolio de inversiones diseñad
 ## ✨ Enfoque y Metas del Proyecto
 
 ### Enfoque
-El enfoque principal es la **automatización** y la **claridad de los datos**. En lugar de depender de hojas de cálculo o cálculos manuales, ZenInvestSnap utiliza un **Django Management Command** que se ejecuta diariamente (via `cron`) para asegurar que todos los datos y métricas estén actualizados y listos para su visualización.
+El enfoque principal es la **automatización** y la **claridad de los datos**. En lugar de depender de hojas de cálculo o cálculos manuales, ZenInvestSnap permite sincronizar tus activos directamente desde APIs (como Bitso) o registrarlos manualmente, asegurando que todos los datos y métricas estén actualizados.
 
-### Metas Clave
-1. **Snapshots Diarios Confiables:** Registrar el precio de cierre de cada activo y el valor total del portafolio al final del día.
-2. **Visualización de Rentabilidad:** Mostrar claramente la métrica clave: la comparación del **Valor de Mercado Actual** frente al **Valor Total Invertido** (con un indicador visual Semáforo).
-3. **Mantenimiento Simple:** Usar la estructura robusta de Django (Modelos, ORM, Management Commands) para un sistema escalable y de bajo mantenimiento.
+### Funcionalidades Logradas
+1.  **Snapshots Diarios Confiables:** Registro automático del precio de cierre de cada activo y el valor total del portafolio.
+2.  **Dashboard Premium:** Visualización clara del valor de mercado vs. inversión total con indicadores visuales de rentabilidad y gráficas históricas (Chart.js).
+3.  **Sistema Multi-usuario:** Registro, inicio de sesión y protección de datos por usuario. Cada usuario tiene su propio portafolio.
+4.  **Sincronización en Tiempo Real:** Botón "Sync Portafolio" que dispara la actualización de precios y saldos desde la interfaz web.
+5.  **Gestión de Transacciones:** Formulario para registrar compras, ventas, depósitos y retiros manualmente.
 
 ## 🛠️ Estructura Técnica
 
 El proyecto está organizado en varias aplicaciones Django para modularidad:
 
-- **main**: Contiene los modelos núcleo (`Asset`, `Transaction`, `DailySnapshot`, `PortfolioValue`) y la lógica central.
-- **gbm**: Integración para obtener datos de GBM.
-- **mercado_pago**: Integración para Mercado Pago.
-- **nu**: Integración para Nu.
-- **bitso**: Integración para Bitso.
+-   **main**: Contiene los modelos núcleo (`Asset`, `Transaction`, `DailySnapshot`, `PortfolioValue`), la lógica de cálculo y el dashboard principal.
+-   **bitso**: Integración funcional para obtener saldos y precios desde Bitso Exchange.
+-   **gbm / mercado_pago / nu**: Estructuras modulares preparadas para futuras integraciones.
 
 ### Modelos Principales
-El sistema se basa en cuatro modelos clave (definidos en `main/models.py`):
-- `Asset`: Representa un activo financiero (Stock, Crypto, Fiat, etc.).
-- `Transaction`: Registra compras, ventas, depósitos y retiros.
-- `DailySnapshot`: Almacena el precio de cierre diario de cada activo.
-- `PortfolioValue`: Resumen diario del valor total del portafolio e inversión total.
-
-### Automatización
-La rutina diaria se ejecuta con un único comando:
-```bash
-python manage.py run_daily_snapshot
-```
-Este comando se encarga de:
-1. Obtener precios actuales de las diferentes fuentes (APIs).
-2. Guardar el snapshot de cada activo.
-3. Calcular y guardar el valor total del portafolio.
+-   `Asset`: Representa un activo financiero (Stock, Crypto, Fiat, etc.).
+-   `Transaction`: Registra compras, ventas, depósitos y retiros para calcular el costo promedio.
+-   `DailySnapshot`: Almacena el precio de cierre diario de cada activo.
+-   `PortfolioValue`: Resumen diario del valor total por usuario.
 
 ## 🚀 Instalación y Configuración
 
 ### 1. Preparación del Entorno
-
-Clona el repositorio y navega al directorio del proyecto.
-
 ```bash
 # Crear entorno virtual
 python -m venv venv
-
-# Activar entorno virtual
-# Windows:
+# Activar (Windows)
 venv\Scripts\activate
-# Linux/Mac:
-source venv/bin/activate
-
 # Instalar dependencias
 pip install -r requirements.txt
 ```
 
-### 2. Configuración de Variables de Entorno
-
-Crea un archivo `.env` en la raíz del proyecto para tus credenciales y configuración:
-
-```bash
-touch .env
+### 2. Configuración de Variables de Env
+Crea un `.env` en la raíz:
+```env
+DEBUG=True
+SECRET_KEY=tu_clave_secreta
+BITSO_API_KEY=tu_key
+BITSO_API_SECRET=tu_secret
 ```
-Agrega tus claves API y configuración de base de datos en el archivo `.env`.
 
-### 3. Configuración de Django
-
-Realiza las migraciones iniciales para crear la estructura de base de datos:
-
+### 3. Base de Datos
 ```bash
 cd zen_invest_snap
-python manage.py makemigrations
 python manage.py migrate
-
-# Crear superusuario para administrar el sitio
 python manage.py createsuperuser
+python manage.py runserver
 ```
 
+## 🔮 Próximos Pasos (Hoja de Ruta)
+1.  **Integraciones Pendientes:** Completar los proveedores para GBM, Nu y Mercado Pago.
+2.  **Credenciales por Usuario:** Implementar un sistema para que cada usuario guarde sus propias llaves API encriptadas en la base de datos, en lugar de usar variables de entorno globales.
+3.  **Alertas:** Sistema de notificaciones cuando un activo sube o baja de cierto porcentaje.
+
 ## 🤝 Contribución
-
-¡Las contribuciones son bienvenidas! Si deseas mejorar la precisión de los cálculos, integrar nuevas APIs financieras o proponer mejoras al Dashboard, sigue los siguientes pasos:
-
-1.  Haz *fork* del repositorio.
-2.  Crea una rama para tu *feature* (`git checkout -b feature/nombre-de-tu-feature`).
-3.  *Commit* tus cambios (`git commit -m 'feat: Descripción breve del cambio'`).
-4.  *Push* a la rama (`git push origin feature/nombre-de-tu-feature`).
-5.  Abre un **Pull Request**.
+¡Las contribuciones son bienvenidas! Sigue el flujo estándar de Pull Requests.
 
 ## 📝 Licencia
-
 Este proyecto está bajo la Licencia MIT.

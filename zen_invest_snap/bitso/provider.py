@@ -62,3 +62,24 @@ class BitsoProvider(AssetProvider):
         except Exception as e:
             print(f"Error fetching Bitso holdings: {e}")
             return {}
+
+    def get_prices(self, tickers):
+        """
+        Returns current prices for given tickers from Bitso.
+        """
+        prices = {}
+        for ticker in tickers:
+            # Bitso books are usually ticker_mxn
+            book = f"{ticker.lower()}_mxn"
+            endpoint = f"/ticker/?book={book}"
+            url = self.base_url + endpoint
+            
+            try:
+                response = requests.get(url)
+                data = response.json()
+                if data.get('success'):
+                    prices[ticker] = Decimal(data['payload']['last'])
+            except Exception as e:
+                print(f"Error fetching price for {book}: {e}")
+                
+        return prices
