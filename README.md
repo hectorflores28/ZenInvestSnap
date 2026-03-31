@@ -75,5 +75,5 @@ python manage.py runserver
 ## 🤝 Contribución
 ¡Las contribuciones son bienvenidas! Sigue el flujo estándar de Pull Requests.
 
-## 📝 Licencia
-Este proyecto está bajo la Licencia MIT.
+## 📄 Licencia
+Este proyecto está bajo la Licencia MIT - mira el archivo [LICENSE](LICENSE) para detalles.
