@@ -23,5 +23,6 @@ COPY . /app/
 # Expose port 8000
 EXPOSE 8000
 
-# Default command (will be overridden by docker-compose)
-CMD ["python", "zen_invest_snap/manage.py", "runserver", "0.0.0.0:8000"]
+# Run Django migrations before starting the app so the auth tables exist
+# on first boot and after fresh container creation.
+CMD ["/bin/sh", "-c", "python zen_invest_snap/manage.py migrate --noinput && exec python zen_invest_snap/manage.py runserver 0.0.0.0:8000"]
