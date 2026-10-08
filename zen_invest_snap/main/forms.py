@@ -8,6 +8,12 @@ class TransactionForm(forms.ModelForm):
     class Meta:
         model = Transaction
         fields = ['asset', 'action', 'quantity', 'price', 'date']
+        labels = {
+            'price': 'Price per unit (MXN)',
+        }
+        help_texts = {
+            'price': 'Enter the transaction price in Mexican pesos (MXN).',
+        }
         widgets = {
             'date': forms.DateTimeInput(attrs={'type': 'datetime-local'}),
         }

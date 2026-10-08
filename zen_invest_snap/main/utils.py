@@ -1,7 +1,45 @@
 import yfinance as yf
-from decimal import Decimal
+import logging
+import requests
+from decimal import Decimal, InvalidOperation
 from django.utils import timezone
 from .models import Asset, DailySnapshot, PortfolioValue, Transaction
+
+logger = logging.getLogger(__name__)
+
+
+class ExchangeRateError(Exception):
+    """Raised when the online USD/MXN exchange rate cannot be retrieved."""
+
+
+def get_usd_mxn_rate():
+    """Return the latest available MXN per USD exchange rate."""
+    try:
+        response = requests.get(
+            'https://api.frankfurter.dev/v1/latest',
+            params={'base': 'USD', 'symbols': 'MXN'},
+            timeout=(3, 5),
+        )
+        response.raise_for_status()
+        rate = Decimal(str(response.json()['rates']['MXN']))
+    except (requests.RequestException, ValueError, KeyError, TypeError, InvalidOperation) as exc:
+        raise ExchangeRateError('Unable to retrieve the USD/MXN exchange rate.') from exc
+
+    if not rate.is_finite() or rate <= 0:
+        raise ExchangeRateError('The USD/MXN exchange rate was invalid.')
+    return rate
+
+
+def is_usd_quoted(asset):
+    """Yahoo Finance quotes are USD unless the ticker uses the Mexican suffix."""
+    return (
+        (asset.asset_type == 'FIAT' and asset.ticker.upper() == 'USD')
+        or (
+            asset.asset_type in ['STOCK', 'ETF', 'CRYPTO']
+            and not asset.ticker.upper().endswith('.MX')
+        )
+    )
+
 
 def get_current_price(ticker, asset_type):
     """
@@ -67,8 +105,15 @@ def perform_snapshot(user):
     # 2. Update Prices and Snapshots
     total_market_value = Decimal('0.0')
     total_invested = Decimal('0.0')
+    currency_normalized = True
 
-    assets = Asset.objects.filter(user=user)
+    assets = list(Asset.objects.filter(user=user))
+    usd_mxn_rate = None
+    if any(is_usd_quoted(asset) for asset in assets):
+        try:
+            usd_mxn_rate = get_usd_mxn_rate()
+        except ExchangeRateError:
+            logger.warning('Unable to get USD/MXN rate; using saved MXN snapshots where available.')
     
     for asset in assets:
         # Calculate Cost Basis from Transactions
@@ -98,22 +143,46 @@ def perform_snapshot(user):
             asset.save()
         
         # Fetch Price
-        price = Decimal('0.0')
-        if asset.asset_type == 'FIAT' and asset.ticker == 'MXN':
+        price = None
+        if current_qty <= 0:
+            price = Decimal('0.0')
+        elif asset.asset_type == 'FIAT' and asset.ticker.upper() == 'MXN':
             price = Decimal('1.0')
-        elif current_qty > 0:
+        elif asset.asset_type == 'FIAT' and asset.ticker.upper() == 'USD':
+            if usd_mxn_rate is not None:
+                price = usd_mxn_rate
+        else:
             fetched_price = get_current_price(asset.ticker, asset.asset_type)
             if fetched_price is not None:
-                price = fetched_price
-            else:
-                last_snapshot = asset.daily_snapshots.order_by('-date').first()
-                price = last_snapshot.closing_price if last_snapshot else Decimal('0.0')
+                if is_usd_quoted(asset):
+                    if usd_mxn_rate is not None:
+                        price = fetched_price * usd_mxn_rate
+                else:
+                    price = fetched_price
 
-        DailySnapshot.objects.update_or_create(
-            asset=asset,
-            date=today,
-            defaults={'closing_price': price}
-        )
+        if price is None:
+            last_snapshot = asset.daily_snapshots.order_by('-date').first()
+            if last_snapshot and (
+                not is_usd_quoted(asset) or last_snapshot.currency_normalized
+            ):
+                price = last_snapshot.closing_price
+
+        if price is not None:
+            DailySnapshot.objects.update_or_create(
+                asset=asset,
+                date=today,
+                defaults={
+                    'closing_price': price,
+                    'currency_normalized': True,
+                }
+            )
+        else:
+            currency_normalized = False
+            logger.warning(
+                'Skipping snapshot for %s because its USD price could not be converted to MXN.',
+                asset.ticker,
+            )
+            price = Decimal('0.0')
         
         total_market_value += (current_qty * price)
         total_invested += calc_cost
@@ -124,7 +193,8 @@ def perform_snapshot(user):
         date=today,
         defaults={
             'total_market_value': total_market_value,
-            'total_invested': total_invested
+            'total_invested': total_invested,
+            'currency_normalized': currency_normalized,
         }
     )
-    return True
+    return currency_normalized

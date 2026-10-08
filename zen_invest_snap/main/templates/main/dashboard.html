@@ -76,7 +76,7 @@
 
         .dashboard-grid {
             display: grid;
-            grid-template-columns: repeat(12, 1fr);
+            grid-template-columns: repeat(12, minmax(0, 1fr));
             gap: 2rem;
         }
 
@@ -84,8 +84,9 @@
         .hero-section {
             grid-column: span 12;
             display: grid;
-            grid-template-columns: 1fr 2fr;
+            grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
             gap: 2rem;
+            min-width: 0;
         }
 
         .summary-card {
@@ -98,6 +99,7 @@
             justify-content: center;
             position: relative;
             overflow: hidden;
+            min-width: 0;
         }
 
         .summary-card::after {
@@ -110,14 +112,31 @@
         }
 
         .total-label { font-size: 0.75rem; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.5rem; }
-        .total-value { font-size: 3rem; font-weight: 700; margin-bottom: 1rem; }
+        .total-value { font-size: clamp(2rem, 5vw, 3rem); font-weight: 700; margin-bottom: 1rem; overflow-wrap: anywhere; }
         
         .sync-row {
             display: flex;
             align-items: center;
+            flex-wrap: wrap;
             gap: 1rem;
             margin-top: 1.5rem;
         }
+
+        .currency-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 0.65rem; margin-top: 0.75rem; }
+        .btn-currency {
+            background: rgba(255,255,255,0.05);
+            color: var(--text-primary);
+            border: 1px solid var(--card-border);
+            padding: 0.45rem 0.75rem;
+            border-radius: 0.65rem;
+            font: inherit;
+            font-size: 0.8rem;
+            cursor: pointer;
+        }
+        .btn-currency:hover { border-color: var(--accent); }
+        .btn-currency:disabled { cursor: wait; opacity: 0.65; }
+        .currency-rate, .sync-description { color: var(--text-secondary); font-size: 0.75rem; }
+        .currency-error { color: var(--danger); font-size: 0.8rem; margin-top: 0.5rem; }
 
         .btn-sync {
             background: var(--accent);
@@ -140,16 +159,65 @@
             background: var(--card-bg);
             border: 1px solid var(--card-border);
             border-radius: 1.5rem;
-            padding: 1.5rem;
-            height: 350px;
+            padding: 1.5rem 1.5rem 1.25rem;
+            height: 390px;
+            min-width: 0;
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
         }
+        .chart-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            flex-wrap: wrap;
+            gap: 0.8rem;
+        }
+        .chart-heading { display: flex; flex-direction: column; gap: 0.25rem; }
+        .chart-title { font-size: 1rem; font-weight: 600; }
+        .chart-subtitle { color: var(--text-secondary); font-size: 0.75rem; }
+        .chart-status { color: #93c5fd; font-size: 0.7rem; }
+        .chart-periods { display: flex; flex-wrap: wrap; gap: 0.35rem; }
+        .chart-period {
+            border: 1px solid transparent;
+            border-radius: 0.55rem;
+            padding: 0.35rem 0.6rem;
+            background: transparent;
+            color: var(--text-secondary);
+            font: inherit;
+            font-size: 0.75rem;
+            cursor: pointer;
+        }
+        .chart-period:hover { color: var(--text-primary); background: rgba(255,255,255,0.05); }
+        .chart-period.is-active {
+            background: rgba(59,130,246,0.15);
+            border-color: rgba(59,130,246,0.3);
+            color: #93c5fd;
+        }
+        .chart-plot { position: relative; flex: 1; min-height: 0; }
+        .chart-plot canvas { width: 100% !important; height: 100% !important; }
+        .chart-empty {
+            position: absolute;
+            inset: 0;
+            display: grid;
+            place-content: center;
+            gap: 0.35rem;
+            text-align: center;
+            padding: 1rem;
+            color: var(--text-secondary);
+            pointer-events: none;
+        }
+        .chart-empty strong { color: var(--text-primary); font-size: 0.9rem; }
+        .chart-empty[hidden] { display: none; }
 
         /* Sources Grid */
         .sources-grid {
             grid-column: span 12;
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr));
             gap: 1.5rem;
+            min-width: 0;
         }
 
         .source-card {
@@ -158,6 +226,7 @@
             border-radius: 1.25rem;
             padding: 1.5rem;
             transition: all 0.2s;
+            min-width: 0;
         }
         .source-card:hover { border-color: rgba(255,255,255,0.15); transform: translateY(-4px); }
 
@@ -174,12 +243,14 @@
         .asset-item {
             display: flex;
             justify-content: space-between;
+            gap: 0.75rem;
             padding: 0.75rem 0;
             border-bottom: 1px solid rgba(255,255,255,0.03);
         }
         .asset-item:last-child { border: none; }
 
         .asset-main { display: flex; flex-direction: column; }
+        .asset-main, .asset-meta { min-width: 0; overflow-wrap: anywhere; }
         .asset-ticker { font-weight: 600; font-size: 0.95rem; }
         .asset-name { font-size: 0.75rem; color: var(--text-secondary); }
 
@@ -209,6 +280,25 @@
             box-shadow: 0 10px 15px -3px rgba(0,0,0,0.5);
             z-index: 1000;
         }
+
+        @media (max-width: 1200px) {
+            .hero-section { grid-template-columns: minmax(0, 1fr); }
+        }
+
+        @media (max-width: 640px) {
+            .navbar { padding: 0.85rem 1rem; }
+            .nav-user { gap: 0.65rem; }
+            .user-info { font-size: 0.75rem; }
+            .container { margin: 1rem auto; padding: 0 1rem; }
+            .dashboard-grid { gap: 1rem; }
+            .hero-section { gap: 1rem; }
+            .summary-card { padding: 1.25rem; }
+            .chart-container { height: 330px; padding: 1rem; gap: 0.75rem; }
+            .chart-header { align-items: flex-start; }
+            .sources-grid { grid-template-columns: minmax(0, 1fr); gap: 1rem; }
+            .source-card { padding: 1.25rem; }
+            .quick-actions { flex-wrap: wrap; }
+        }
     </style>
 </head>
 <body>
@@ -236,35 +326,68 @@
             <div class="hero-section">
                 <!-- Summary -->
                 <div class="summary-card">
-                    <div class="total-label">Total Market Value</div>
-                    <div class="total-value">${{ calculated_total|floatformat:2 }}</div>
+                    <div class="total-label">Total Market Value (MXN)</div>
+                    <div class="total-value money-value" data-mxn-value="{{ calculated_total }}">{{ calculated_total|floatformat:2 }}</div>
                     
-                    {% if portfolio %}
-                        <div class="profitability {% if portfolio.profitability_percentage >= 0 %}prof-positive{% else %}prof-negative{% endif %}">
-                            {% if portfolio.profitability_percentage >= 0 %}▲{% else %}▼{% endif %} 
-                            {{ portfolio.profitability_percentage|floatformat:2 }}%
+                    {% if total_invested > 0 %}
+                        <div class="profitability {% if profitability_percentage >= 0 %}prof-positive{% else %}prof-negative{% endif %}">
+                            {% if profitability_percentage >= 0 %}▲{% else %}▼{% endif %}
+                            {{ profitability_percentage|floatformat:2 }}%
                         </div>
                         <div style="margin-top: 0.5rem; font-size: 0.85rem; color: var(--text-secondary);">
-                            Invested: ${{ portfolio.total_invested|floatformat:2 }}
+                            Invested: <span class="money-value" data-mxn-value="{{ total_invested }}">{{ total_invested|floatformat:2 }}</span>
                         </div>
                     {% endif %}
 
+                    {% if needs_currency_sync %}
+                        <div class="currency-error">Some saved USD prices need an online sync before they can be shown in MXN.</div>
+                    {% endif %}
+
+                    <div class="currency-controls">
+                        <button type="button" id="currencyToggle" class="btn-currency">Ver en USD</button>
+                        <span id="currencyRate" class="currency-rate" aria-live="polite"></span>
+                    </div>
+                    <div id="currencyError" class="currency-error" role="alert" hidden></div>
+
                     <div class="sync-row">
-                        <a href="{% url 'sync_data' %}" class="btn-sync">
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21.5 2v6h-6M2.5 22v-6h6M2 12c0-4.4 3.6-8 8-8 3.3 0 6.2 2 7.4 4.9M22 12c0 4.4-3.6 8-8 8-3.3 0-6.2-2-7.4-4.9"/></svg>
-                            Sync Portafolio
-                        </a>
+                        <form action="{% url 'sync_data' %}" method="post">
+                            {% csrf_token %}
+                            <button type="submit" class="btn-sync">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21.5 2v6h-6M2.5 22v-6h6M2 12c0-4.4 3.6-8 8-8 3.3 0 6.2 2 7.4 4.9M22 12c0 4.4-3.6 8-8 8-3.3 0-6.2-2-7.4-4.9"/></svg>
+                                Sync Portafolio
+                            </button>
+                        </form>
+                        <span class="sync-description">Actualiza saldos de Bitso y precios del mercado; guarda el valor diario.</span>
                     </div>
                 </div>
 
-                <!-- History Chart -->
+                <!-- Portfolio History Chart -->
                 <div class="chart-container">
-                    <canvas id="portfolioChart"></canvas>
+                    <div class="chart-header">
+                        <div class="chart-heading">
+                            <span class="chart-title">Evolución del portafolio</span>
+                            <span id="chartSubtitle" class="chart-subtitle">Valor total · últimos 30 días</span>
+                            <span id="chartStatus" class="chart-status"></span>
+                        </div>
+                        <div class="chart-periods" role="group" aria-label="Periodo del gráfico">
+                            <button type="button" class="chart-period" data-range="7">7D</button>
+                            <button type="button" class="chart-period is-active" data-range="30">30D</button>
+                            <button type="button" class="chart-period" data-range="90">90D</button>
+                            <button type="button" class="chart-period" data-range="365">1A</button>
+                        </div>
+                    </div>
+                    <div class="chart-plot">
+                        <canvas id="portfolioChart" aria-label="Historial del valor del portafolio"></canvas>
+                        <div id="chartEmpty" class="chart-empty" hidden>
+                            <strong id="chartEmptyTitle"></strong>
+                            <span id="chartEmptyMessage"></span>
+                        </div>
+                    </div>
                 </div>
             </div>
 
             <!-- Quick Actions -->
-            <div style="grid-column: span 12; display: flex; gap: 1rem;">
+            <div class="quick-actions" style="grid-column: span 12; display: flex; gap: 1rem;">
                 <a href="{% url 'add_transaction' %}" class="btn-sync" style="background: rgba(255,255,255,0.05); border: 1px solid var(--card-border);">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
                     New Transaction
@@ -281,7 +404,7 @@
                 <div class="source-card">
                     <div class="source-header">
                         <div class="source-title">{{ source.source_label }}</div>
-                        <div class="source-total">${{ source.total_value|floatformat:2 }}</div>
+                        <div class="source-total money-value" data-mxn-value="{{ source.total_value }}">{{ source.total_value|floatformat:2 }}</div>
                     </div>
                     
                     <ul class="asset-list">
@@ -293,11 +416,19 @@
                                     <span class="asset-name">{{ asset.name }}</span>
                                 </div>
                                 <div class="asset-meta">
-                                    <div class="asset-value">${{ asset.value|floatformat:2 }}</div>
+                                    {% if asset.price_is_mxn %}
+                                        <div class="asset-value money-value" data-mxn-value="{{ asset.value }}">{{ asset.value|floatformat:2 }}</div>
+                                    {% else %}
+                                        <div class="asset-value">Pending MXN sync</div>
+                                    {% endif %}
                                     <div style="font-size: 0.75rem; {% if asset.value >= asset.invested %}color: var(--success);{% else %}color: var(--danger);{% endif %}">
-                                        Inv: ${{ asset.invested|floatformat:2 }}
+                                        Inv: <span class="money-value" data-mxn-value="{{ asset.invested }}">{{ asset.invested|floatformat:2 }}</span>
                                     </div>
-                                    <div class="asset-price">{{ asset.quantity|floatformat:4 }} units @ ${{ asset.price|floatformat:2 }}</div>
+                                    {% if asset.price_is_mxn %}
+                                        <div class="asset-price">{{ asset.quantity|floatformat:4 }} units @ <span class="money-value" data-mxn-value="{{ asset.price }}">{{ asset.price|floatformat:2 }}</span></div>
+                                    {% else %}
+                                        <div class="asset-price">{{ asset.quantity|floatformat:4 }} units · price pending sync</div>
+                                    {% endif %}
                                 </div>
                             </li>
                             {% endif %}
@@ -317,41 +448,202 @@
         const ctx = document.getElementById('portfolioChart').getContext('2d');
         const historyData = [
             {% for entry in history %}
-            { date: '{{ entry.date|date:"M d" }}', value: {{ entry.total_market_value }} },
+            { date: '{{ entry.date|date:"Y-m-d" }}', value: {{ entry.total_market_value }} },
             {% endfor %}
         ];
 
-        new Chart(ctx, {
+        let activeCurrency = 'MXN';
+        let usdMxnRate = null;
+        let activeRange = 30;
+        const chartDateFormatter = new Intl.DateTimeFormat('es-MX', {
+            day: 'numeric',
+            month: 'short'
+        });
+
+        function getVisibleHistory() {
+            const cutoff = new Date();
+            cutoff.setDate(cutoff.getDate() - activeRange);
+            return historyData.filter(entry =>
+                new Date(`${entry.date}T00:00:00`) >= cutoff
+            );
+        }
+        let visibleHistory = getVisibleHistory();
+
+        const portfolioChart = new Chart(ctx, {
             type: 'line',
             data: {
-                labels: historyData.map(d => d.date),
+                labels: [],
                 datasets: [{
-                    label: 'Portfolio Value',
-                    data: historyData.map(d => d.value),
-                    borderColor: '#3b82f6',
-                    backgroundColor: 'rgba(59, 130, 246, 0.1)',
-                    borderWidth: 3,
+                    label: `Valor del portafolio (${activeCurrency})`,
+                    data: [],
+                    borderColor: '#60a5fa',
+                    backgroundColor: context => {
+                        const { chart } = context;
+                        const { ctx, chartArea } = chart;
+                        if (!chartArea) return 'rgba(59, 130, 246, 0.12)';
+                        const gradient = ctx.createLinearGradient(0, chartArea.top, 0, chartArea.bottom);
+                        gradient.addColorStop(0, 'rgba(59, 130, 246, 0.28)');
+                        gradient.addColorStop(1, 'rgba(59, 130, 246, 0.01)');
+                        return gradient;
+                    },
+                    borderWidth: 2.5,
                     fill: true,
-                    tension: 0.4,
-                    pointRadius: 0
+                    tension: 0.32,
+                    pointRadius: context => context.dataset.data.length === 1 ? 5 : 0,
+                    pointHoverRadius: 5,
+                    pointBackgroundColor: '#0b0f19',
+                    pointBorderColor: '#60a5fa',
+                    pointBorderWidth: 2,
+                    pointHitRadius: 12
                 }]
             },
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
                 plugins: {
-                    legend: { display: false }
+                    legend: { display: false },
+                    tooltip: {
+                        displayColors: false,
+                        backgroundColor: '#0b0f19',
+                        borderColor: 'rgba(148,163,184,0.2)',
+                        borderWidth: 1,
+                        titleColor: '#cbd5e1',
+                        bodyColor: '#f8fafc',
+                        padding: 12,
+                        callbacks: {
+                            title: items => {
+                                const date = new Date(`${items[0].label}T00:00:00`);
+                                return new Intl.DateTimeFormat('es-MX', {
+                                    day: 'numeric',
+                                    month: 'long',
+                                    year: 'numeric'
+                                }).format(date);
+                            },
+                            label: item => formatCurrency(item.raw, activeCurrency)
+                        }
+                    }
                 },
+                interaction: { intersect: false, mode: 'index' },
                 scales: {
                     y: {
-                        grid: { color: 'rgba(255,255,255,0.05)', drawBorder: false },
-                        ticks: { color: '#94a3b8', font: { family: 'Outfit', size: 10 } }
+                        border: { display: false },
+                        grace: '12%',
+                        grid: { color: 'rgba(255,255,255,0.06)', drawTicks: false },
+                        ticks: {
+                            color: '#94a3b8',
+                            padding: 10,
+                            maxTicksLimit: 5,
+                            font: { family: 'Outfit', size: 10 },
+                            callback: value => new Intl.NumberFormat('es-MX', {
+                                notation: 'compact',
+                                maximumFractionDigits: 1
+                            }).format(value)
+                        }
                     },
                     x: {
+                        border: { display: false },
                         grid: { display: false },
-                        ticks: { color: '#94a3b8', font: { family: 'Outfit', size: 10 } }
+                        ticks: {
+                            color: '#94a3b8',
+                            maxTicksLimit: 6,
+                            maxRotation: 0,
+                            font: { family: 'Outfit', size: 10 },
+                            callback: value => {
+                                const entry = visibleHistory[Number(value)];
+                                if (!entry) return '';
+                                const date = new Date(`${entry.date}T00:00:00`);
+                                return chartDateFormatter.format(date);
+                            }
+                        }
                     }
                 }
+            }
+        });
+
+        function formatCurrency(value, currency) {
+            const formatted = new Intl.NumberFormat('es-MX', {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2
+            }).format(Number(value));
+            return `$${formatted} ${currency}`;
+        }
+
+        function renderCurrency() {
+            document.querySelectorAll('.money-value').forEach(element => {
+                const mxnValue = Number(element.dataset.mxnValue);
+                const displayedValue = activeCurrency === 'USD' ? mxnValue / usdMxnRate : mxnValue;
+                element.textContent = formatCurrency(displayedValue, activeCurrency);
+            });
+            visibleHistory = getVisibleHistory();
+            portfolioChart.data.labels = visibleHistory.map(entry => entry.date);
+            portfolioChart.data.datasets[0].data = visibleHistory.map(entry =>
+                activeCurrency === 'USD' ? entry.value / usdMxnRate : entry.value
+            );
+            portfolioChart.data.datasets[0].label = `Valor del portafolio (${activeCurrency})`;
+            portfolioChart.update();
+
+            const emptyState = document.getElementById('chartEmpty');
+            const emptyTitle = document.getElementById('chartEmptyTitle');
+            const emptyMessage = document.getElementById('chartEmptyMessage');
+            emptyState.hidden = visibleHistory.length > 0;
+            if (visibleHistory.length === 0) {
+                emptyTitle.textContent = 'Aún no hay historial para este periodo';
+                emptyMessage.textContent = 'Usa Sync Portafolio para guardar la primera lectura diaria.';
+            }
+            document.getElementById('chartStatus').textContent = visibleHistory.length === 1
+                ? '1 registro · sincroniza otros días para ver la tendencia'
+                : `${visibleHistory.length} registros en este periodo`;
+            const periodLabel = activeRange === 365 ? 'último año' : `últimos ${activeRange} días`;
+            document.getElementById('chartSubtitle').textContent =
+                `Valor total (${activeCurrency}) · ${periodLabel}`;
+        }
+
+        document.querySelectorAll('.chart-period').forEach(button => {
+            button.addEventListener('click', () => {
+                activeRange = Number(button.dataset.range);
+                document.querySelectorAll('.chart-period').forEach(periodButton => {
+                    periodButton.classList.toggle('is-active', periodButton === button);
+                });
+                renderCurrency();
+            });
+        });
+
+        renderCurrency();
+
+        document.getElementById('currencyToggle').addEventListener('click', async event => {
+            const button = event.currentTarget;
+            const errorMessage = document.getElementById('currencyError');
+            const rateLabel = document.getElementById('currencyRate');
+            errorMessage.hidden = true;
+
+            if (activeCurrency === 'USD') {
+                activeCurrency = 'MXN';
+                button.textContent = 'Ver en USD';
+                rateLabel.textContent = '';
+                renderCurrency();
+                return;
+            }
+
+            button.disabled = true;
+            try {
+                const response = await fetch("{% url 'exchange_rate' %}", {
+                    headers: { 'Accept': 'application/json' }
+                });
+                const result = await response.json();
+                if (!response.ok || !Number.isFinite(Number(result.rate)) || Number(result.rate) <= 0) {
+                    throw new Error(result.error || 'No se pudo obtener el tipo de cambio.');
+                }
+
+                usdMxnRate = Number(result.rate);
+                activeCurrency = 'USD';
+                button.textContent = 'Ver en MXN';
+                rateLabel.textContent = `1 USD = ${formatCurrency(usdMxnRate, 'MXN')}`;
+                renderCurrency();
+            } catch (error) {
+                errorMessage.textContent = `${error.message} Los montos siguen en MXN.`;
+                errorMessage.hidden = false;
+            } finally {
+                button.disabled = false;
             }
         });
         

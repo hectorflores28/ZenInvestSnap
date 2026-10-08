@@ -2,10 +2,11 @@ from django.shortcuts import render, redirect
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.forms import UserCreationForm
 from django.contrib import messages
-from django.db.models import Sum, F
+from django.http import JsonResponse
+from django.views.decorators.http import require_GET, require_POST
 from .models import Asset, DailySnapshot, PortfolioValue, Transaction
 from .forms import TransactionForm, AssetForm
-from .utils import perform_snapshot
+from .utils import ExchangeRateError, get_usd_mxn_rate, is_usd_quoted, perform_snapshot
 from decimal import Decimal
 
 
@@ -58,14 +59,14 @@ def dashboard(request):
     2. Breakdown by Source (GBM, Bitso, Nu, Mercado Pago).
     """
     # 1. Overall Portfolio Summary (Last available for this user)
-    latest_portfolio = PortfolioValue.objects.filter(user=request.user).order_by('-date').first()
-    
     # 2. Assets grouped by Source
     sources = ['GBM', 'BITSO', 'NU', 'MERCADO_PAGO', 'OTHER']
     
     dashboard_data = [] # List of dicts: {'source': 'GBM', 'total_value': X, 'assets': []}
     
     overall_total_calculated = Decimal('0.0')
+    overall_invested_calculated = Decimal('0.0')
+    needs_currency_sync = False
 
     for source in sources:
         assets = Asset.objects.filter(user=request.user, source=source)
@@ -83,8 +84,17 @@ def dashboard(request):
             # Use the latest quantity (Synched or Calculated)
             qty = asset.latest_quantity
             
-            current_price = snapshot.closing_price if snapshot else Decimal('0.0')
+            price_is_mxn = bool(
+                snapshot
+                and (
+                    not is_usd_quoted(asset)
+                    or snapshot.currency_normalized
+                )
+            )
+            current_price = snapshot.closing_price if price_is_mxn else Decimal('0.0')
             current_value = qty * current_price
+            if qty > 0 and is_usd_quoted(asset) and not price_is_mxn:
+                needs_currency_sync = True
             
             # Calculate Invested per Asset
             asset_txs = Transaction.objects.filter(asset=asset, user=request.user).order_by('date')
@@ -103,6 +113,7 @@ def dashboard(request):
                         asset_qty -= tx.quantity
 
             source_data['total_value'] += current_value
+            overall_invested_calculated += asset_cost
             
             source_data['assets_detail'].append({
                 'ticker': asset.ticker,
@@ -111,28 +122,61 @@ def dashboard(request):
                 'price': current_price,
                 'value': current_value,
                 'invested': asset_cost,
-                'type': asset.asset_type
+                'type': asset.asset_type,
+                'price_is_mxn': price_is_mxn,
             })
             
         dashboard_data.append(source_data)
         overall_total_calculated += source_data['total_value']
 
-    # 3. History for Chart (Last 30 days)
-    history = PortfolioValue.objects.filter(user=request.user).order_by('-date')[:30]
-    history = sorted(history, key=lambda x: x.date)
+    # Keep a year of daily history available for the chart's date-range filters.
+    history = PortfolioValue.objects.filter(
+        user=request.user,
+        currency_normalized=True,
+    ).order_by('-date')[:365]
+    history = list(reversed(history))
+    profitability_percentage = Decimal('0.0')
+    if overall_invested_calculated > 0:
+        profitability_percentage = (
+            (overall_total_calculated - overall_invested_calculated)
+            / overall_invested_calculated
+        ) * 100
 
     context = {
-        'portfolio': latest_portfolio, 
         'dashboard_data': dashboard_data,
         'calculated_total': overall_total_calculated,
+        'total_invested': overall_invested_calculated,
+        'profitability_percentage': profitability_percentage,
+        'needs_currency_sync': needs_currency_sync,
         'history': history,
     }
     
     return render(request, 'main/dashboard.html', context)
 
 @login_required
+@require_POST
 def sync_data(request):
     """View to trigger manual sync."""
-    perform_snapshot(request.user)
-    messages.success(request, 'Portfolio updated successfully!')
+    currency_normalized = perform_snapshot(request.user)
+    if currency_normalized:
+        messages.success(request, 'Portfolio updated successfully!')
+    else:
+        messages.warning(
+            request,
+            'Some USD prices could not be converted. Their values remain pending until a successful sync.',
+        )
     return redirect('dashboard')
+
+
+@login_required
+@require_GET
+def exchange_rate(request):
+    """Return the current online USD/MXN exchange rate for the dashboard."""
+    try:
+        rate = get_usd_mxn_rate()
+    except ExchangeRateError:
+        return JsonResponse(
+            {'error': 'No se pudo obtener el tipo de cambio. Los montos siguen en MXN.'},
+            status=503,
+        )
+    return JsonResponse({'rate': str(rate)})

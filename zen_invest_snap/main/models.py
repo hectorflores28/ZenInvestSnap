@@ -53,6 +53,7 @@ class DailySnapshot(models.Model):
     asset = models.ForeignKey(Asset, on_delete=models.CASCADE, related_name='daily_snapshots')
     date = models.DateField()
     closing_price = models.DecimalField(max_digits=20, decimal_places=4)
+    currency_normalized = models.BooleanField(default=False)
     
     class Meta:
         unique_together = ('asset', 'date')
@@ -67,6 +68,7 @@ class PortfolioValue(models.Model):
     date = models.DateField()
     total_market_value = models.DecimalField(max_digits=20, decimal_places=2)
     total_invested = models.DecimalField(max_digits=20, decimal_places=2)
+    currency_normalized = models.BooleanField(default=False)
     
     class Meta:
         unique_together = ('user', 'date')
