@@ -27,12 +27,7 @@ SECRET_KEY = os.getenv('SECRET_KEY', 'django-insecure-default-key')
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.getenv('DEBUG', 'True') == 'True'
 
-ALLOWED_HOSTS = [
-    '127.0.0.1',
-    'localhost',
-    '192.168.41.139',
-    ]
-
+ALLOWED_HOSTS = ['zeninvestsnap.onrender.com', '.onrender.com', 'localhost', '127.0.0.1']
 
 # Application definition
 
