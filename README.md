@@ -68,11 +68,13 @@ python manage.py runserver
 ```
 
 ### Moneda y sincronización del portafolio
-- Los precios de las transacciones se capturan en MXN. El dashboard muestra MXN por defecto y el botón **Ver en USD** convierte temporalmente los valores usando el último tipo de cambio USD/MXN disponible en internet.
+- Los tipos de activo son: **Stock** (acción individual, por ejemplo NVDA), **Cryptocurrency** (cripto, por ejemplo BTC), **Fiat Currency** (dinero en una moneda, por ejemplo MXN/USD), **ETF** (fondo cotizado que agrupa activos) y **Bond** (instrumento de deuda/renta fija). **Savings / Yield account** añade apartados de ahorro con rendimiento.
+- Los precios de las transacciones se capturan en MXN. El dashboard muestra MXN por defecto y el botón **Ver en USD** convierte temporalmente los valores usando la última cotización USD/MXN de Yahoo Finance. Las cotizaciones de mercado pueden tener retraso y diferir de otras fuentes.
 - Si no se puede consultar el tipo de cambio, el dashboard muestra un error y mantiene los montos en MXN.
 - **Sync Portafolio** consulta los saldos de Bitso (si están configuradas sus llaves), obtiene precios de acciones, ETF y cripto con Yahoo Finance, convierte cotizaciones USD a MXN y guarda snapshots diarios y el total del portafolio. Los tickers mexicanos deben usar el sufijo `.MX` para reconocer cotizaciones en pesos.
 - Al no poder consultar el tipo de cambio durante la sincronización, se conserva el último precio guardado en MXN cuando existe. Los precios USD antiguos quedan pendientes hasta una sincronización exitosa; los valores históricos anteriores a la normalización no se incluyen en la gráfica. GBM, Nu y Mercado Pago aún no tienen sincronización automática implementada.
 - Precisión de datos: `Transaction.price` y `DailySnapshot.closing_price` guardan hasta 4 decimales; las cantidades guardan hasta 10; los totales diarios de `PortfolioValue` guardan 2. El dashboard también calcula el total actual desde posiciones y snapshots, y lo presenta redondeado a 2 decimales sin reducir la precisión de los cálculos ni modificar esos campos.
+- Los activos de tipo **Savings / Yield account** representan apartados manuales de Mercado Pago o Nu. Registra aportaciones/retiros como transacciones con precio unitario de 1 MXN; el saldo calcula interés simple diario sobre el principal neto, con la tasa anual indicada en cada apartado. Tasas sugeridas al crear: 10% para Mercado Pago y 6.5% para Nu; ajústalas a las condiciones vigentes. Los cambios de tasa aplican desde su fecha de edición y no recalculan el rendimiento anterior. Sincronizar guarda el valor diario para el gráfico.
 
 ## 🔮 Próximos Pasos (Hoja de Ruta)
 1.  **Integraciones Pendientes:** Completar los proveedores para GBM, Nu y Mercado Pago.

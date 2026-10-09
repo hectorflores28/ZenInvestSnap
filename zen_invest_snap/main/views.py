@@ -1,12 +1,19 @@
-from django.shortcuts import render, redirect
+from django.shortcuts import get_object_or_404, render, redirect
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.forms import UserCreationForm
 from django.contrib import messages
 from django.http import JsonResponse
 from django.views.decorators.http import require_GET, require_POST
-from .models import Asset, DailySnapshot, PortfolioValue, Transaction
+from django.utils import timezone
+from .models import Asset, DailySnapshot, PortfolioValue, SavingsRateChange, Transaction
 from .forms import TransactionForm, AssetForm
-from .utils import ExchangeRateError, get_usd_mxn_rate, is_usd_quoted, perform_snapshot
+from .utils import (
+    ExchangeRateError,
+    calculate_savings_balance,
+    get_usd_mxn_rate,
+    is_usd_quoted,
+    perform_snapshot,
+)
 from decimal import Decimal
 
 
@@ -32,11 +39,39 @@ def add_asset(request):
             asset = form.save(commit=False)
             asset.user = request.user
             asset.save()
+            if asset.asset_type == 'SAVINGS':
+                SavingsRateChange.objects.create(
+                    asset=asset,
+                    effective_date=timezone.localdate(),
+                    annual_yield_rate=asset.annual_yield_rate,
+                )
             messages.success(request, 'Asset added!')
             return redirect('dashboard')
     else:
         form = AssetForm()
     return render(request, 'main/form_page.html', {'form': form, 'title': 'Add New Asset'})
+
+
+@login_required
+def edit_asset(request, asset_id):
+    asset = get_object_or_404(Asset, pk=asset_id, user=request.user)
+    if request.method == 'POST':
+        previous_rate = asset.annual_yield_rate
+        form = AssetForm(request.POST, instance=asset)
+        if form.is_valid():
+            asset = form.save()
+            if asset.asset_type == 'SAVINGS' and asset.annual_yield_rate != previous_rate:
+                SavingsRateChange.objects.update_or_create(
+                    asset=asset,
+                    effective_date=timezone.localdate(),
+                    defaults={'annual_yield_rate': asset.annual_yield_rate},
+                )
+            messages.success(request, 'Asset updated!')
+            return redirect('dashboard')
+    else:
+        form = AssetForm(instance=asset)
+    return render(request, 'main/form_page.html', {'form': form, 'title': 'Edit Asset'})
+
 
 def register(request):
     if request.method == 'POST':
@@ -81,49 +116,66 @@ def dashboard(request):
             # Get latest snapshot for this asset
             snapshot = asset.daily_snapshots.order_by('-date').first()
             
-            # Use the latest quantity (Synched or Calculated)
-            qty = asset.latest_quantity
-            
-            price_is_mxn = bool(
-                snapshot
-                and (
-                    not is_usd_quoted(asset)
-                    or snapshot.currency_normalized
+            # Savings balances accrue from transaction dates even between syncs.
+            if asset.asset_type == 'SAVINGS':
+                invested_principal, savings_balance = calculate_savings_balance(asset)
+                qty = savings_balance
+                current_price = Decimal('1.0')
+                current_value = savings_balance
+                price_is_mxn = True
+            else:
+                invested_principal = None
+                qty = asset.latest_quantity
+
+                price_is_mxn = bool(
+                    snapshot
+                    and (
+                        not is_usd_quoted(asset)
+                        or snapshot.currency_normalized
+                    )
                 )
-            )
-            current_price = snapshot.closing_price if price_is_mxn else Decimal('0.0')
-            current_value = qty * current_price
-            if qty > 0 and is_usd_quoted(asset) and not price_is_mxn:
-                needs_currency_sync = True
+                current_price = snapshot.closing_price if price_is_mxn else Decimal('0.0')
+                current_value = qty * current_price
+                if qty > 0 and is_usd_quoted(asset) and not price_is_mxn:
+                    needs_currency_sync = True
             
             # Calculate Invested per Asset
-            asset_txs = Transaction.objects.filter(asset=asset, user=request.user).order_by('date')
-            asset_qty = Decimal('0.0')
-            asset_cost = Decimal('0.0')
-            for tx in asset_txs:
-                if tx.action in ['BUY', 'DEPOSIT']:
-                    asset_cost += tx.quantity * tx.price
-                    asset_qty += tx.quantity
-                elif tx.action in ['SELL', 'WITHDRAWAL']:
-                    if asset_qty > 0:
-                        avg = asset_cost / asset_qty
-                        asset_cost -= tx.quantity * avg
-                        asset_qty -= tx.quantity
-                    else:
-                        asset_qty -= tx.quantity
+            if invested_principal is not None:
+                asset_cost = invested_principal
+            else:
+                asset_txs = Transaction.objects.filter(
+                    asset=asset,
+                    user=request.user,
+                ).order_by('date')
+                asset_qty = Decimal('0.0')
+                asset_cost = Decimal('0.0')
+                for tx in asset_txs:
+                    if tx.action in ['BUY', 'DEPOSIT']:
+                        asset_cost += tx.quantity * tx.price
+                        asset_qty += tx.quantity
+                    elif tx.action in ['SELL', 'WITHDRAWAL']:
+                        if asset_qty > 0:
+                            avg = asset_cost / asset_qty
+                            asset_cost -= tx.quantity * avg
+                            asset_qty -= tx.quantity
+                        else:
+                            asset_qty -= tx.quantity
 
             source_data['total_value'] += current_value
             overall_invested_calculated += asset_cost
             
             source_data['assets_detail'].append({
                 'ticker': asset.ticker,
+                'id': asset.id,
                 'name': asset.name,
                 'quantity': qty,
                 'price': current_price,
                 'value': current_value,
                 'invested': asset_cost,
+                'yield_earned': current_value - asset_cost,
                 'type': asset.asset_type,
                 'price_is_mxn': price_is_mxn,
+                'annual_yield_rate': asset.annual_yield_rate,
             })
             
         dashboard_data.append(source_data)

@@ -8,6 +8,7 @@ class Asset(models.Model):
         ('FIAT', 'Fiat Currency'),
         ('ETF', 'ETF'),
         ('BOND', 'Bond'),
+        ('SAVINGS', 'Savings / Yield account'),
     ]
     SOURCE_CHOICES = [
         ('GBM', 'GBM'),
@@ -24,6 +25,12 @@ class Asset(models.Model):
     
     # Snapshot of the latest known quantity (updated by API or Transactions)
     latest_quantity = models.DecimalField(max_digits=20, decimal_places=10, default=0.0)
+    annual_yield_rate = models.DecimalField(
+        max_digits=5,
+        decimal_places=2,
+        default=0,
+        help_text='Annual simple interest rate, as a percentage.',
+    )
 
     class Meta:
         unique_together = ('user', 'ticker')
@@ -47,6 +54,21 @@ class Transaction(models.Model):
     
     def __str__(self):
         return f"{self.action} {self.quantity} {self.asset.ticker} @ {self.price} - {self.user.username}"
+
+
+class SavingsRateChange(models.Model):
+    asset = models.ForeignKey(
+        Asset,
+        on_delete=models.CASCADE,
+        related_name='savings_rate_changes',
+    )
+    effective_date = models.DateField()
+    annual_yield_rate = models.DecimalField(max_digits=5, decimal_places=2)
+
+    class Meta:
+        ordering = ['effective_date', 'pk']
+        unique_together = ('asset', 'effective_date')
+
 
 class DailySnapshot(models.Model):
     """Stores the closing price of an asset for a specific day."""

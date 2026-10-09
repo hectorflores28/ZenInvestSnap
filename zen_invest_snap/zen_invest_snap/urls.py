@@ -16,7 +16,15 @@ Including another URLconf
 """
 from django.contrib import admin
 from django.urls import path, include
-from main.views import dashboard, exchange_rate, register, sync_data, add_asset, add_transaction
+from main.views import (
+    add_asset,
+    add_transaction,
+    dashboard,
+    edit_asset,
+    exchange_rate,
+    register,
+    sync_data,
+)
 
 urlpatterns = [
     path('admin/', admin.site.urls),
@@ -24,6 +32,7 @@ urlpatterns = [
     path('sync/', sync_data, name='sync_data'),
     path('exchange-rate/', exchange_rate, name='exchange_rate'),
     path('add-asset/', add_asset, name='add_asset'),
+    path('assets/<int:asset_id>/edit/', edit_asset, name='edit_asset'),
     path('add-transaction/', add_transaction, name='add_transaction'),
     path('accounts/', include('django.contrib.auth.urls')),
     path('register/', register, name='register'),

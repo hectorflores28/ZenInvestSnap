@@ -70,9 +70,12 @@
         <form method="post">
             {% csrf_token %}
             {% for field in form %}
-            <div class="form-group">
+            <div class="form-group" {% if field.name == 'annual_yield_rate' %}id="yield-rate-group"{% endif %}>
                 <label for="{{ field.id_for_label }}">{{ field.label }}</label>
                 {{ field }}
+                {% if field.help_text %}
+                <div style="color: var(--text-secondary); font-size: 0.75rem; margin-top: 0.2rem;">{{ field.help_text }}</div>
+                {% endif %}
                 {% if field.errors %}
                 <div style="color: #ef4444; font-size: 0.75rem; margin-top: 0.2rem;">{{ field.errors }}</div>
                 {% endif %}
@@ -84,5 +87,26 @@
             </div>
         </form>
     </div>
+    {% if form.annual_yield_rate %}
+    <script>
+        const assetType = document.getElementById('id_asset_type');
+        const source = document.getElementById('id_source');
+        const rateGroup = document.getElementById('yield-rate-group');
+        const annualRate = document.getElementById('id_annual_yield_rate');
+        const rateDefaults = { MERCADO_PAGO: '10.00', NU: '6.50' };
+
+        function updateYieldFields(updateDefault) {
+            const isSavings = assetType.value === 'SAVINGS';
+            rateGroup.hidden = !isSavings;
+            if (isSavings && updateDefault && rateDefaults[source.value]) {
+                annualRate.value = rateDefaults[source.value];
+            }
+        }
+
+        assetType.addEventListener('change', () => updateYieldFields(true));
+        source.addEventListener('change', () => updateYieldFields(true));
+        updateYieldFields(false);
+    </script>
+    {% endif %}
 </body>
 </html>

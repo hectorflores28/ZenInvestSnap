@@ -13,16 +13,26 @@ class ExchangeRateError(Exception):
 
 
 def get_usd_mxn_rate():
-    """Return the latest available MXN per USD exchange rate."""
+    """Return Yahoo Finance's latest USD/MXN market quote."""
     try:
         response = requests.get(
-            'https://api.frankfurter.dev/v1/latest',
-            params={'base': 'USD', 'symbols': 'MXN'},
+            'https://query1.finance.yahoo.com/v8/finance/chart/MXN=X',
+            params={'range': '1d', 'interval': '1m'},
+            headers={'User-Agent': 'Mozilla/5.0'},
             timeout=(3, 5),
         )
         response.raise_for_status()
-        rate = Decimal(str(response.json()['rates']['MXN']))
-    except (requests.RequestException, ValueError, KeyError, TypeError, InvalidOperation) as exc:
+        rate = Decimal(
+            str(response.json()['chart']['result'][0]['meta']['regularMarketPrice'])
+        )
+    except (
+        requests.RequestException,
+        ValueError,
+        KeyError,
+        TypeError,
+        IndexError,
+        InvalidOperation,
+    ) as exc:
         raise ExchangeRateError('Unable to retrieve the USD/MXN exchange rate.') from exc
 
     if not rate.is_finite() or rate <= 0:
@@ -31,14 +41,67 @@ def get_usd_mxn_rate():
 
 
 def is_usd_quoted(asset):
-    """Yahoo Finance quotes are USD unless the ticker uses the Mexican suffix."""
+    """Yahoo Finance quotes are USD unless the ticker indicates MXN."""
+    ticker = asset.ticker.upper()
     return (
-        (asset.asset_type == 'FIAT' and asset.ticker.upper() == 'USD')
+        (asset.asset_type == 'FIAT' and ticker == 'USD')
         or (
             asset.asset_type in ['STOCK', 'ETF', 'CRYPTO']
-            and not asset.ticker.upper().endswith('.MX')
+            and not ticker.endswith(('.MX', '-MXN'))
         )
     )
+
+
+def calculate_savings_balance(asset, as_of_date=None):
+    """Calculate simple daily interest on the net principal of a savings asset."""
+    as_of_date = as_of_date or timezone.localdate()
+    rate_changes = list(
+        asset.savings_rate_changes.filter(effective_date__lte=as_of_date).order_by(
+            'effective_date',
+            'pk',
+        )
+    )
+    annual_rate = (
+        rate_changes[0].annual_yield_rate
+        if rate_changes
+        else asset.annual_yield_rate
+    ) / Decimal('100')
+    principal = Decimal('0')
+    interest = Decimal('0')
+    previous_date = None
+
+    transactions = asset.transactions.filter(user=asset.user).order_by('date', 'pk')
+    events = [
+        (rate.effective_date, 0, rate)
+        for rate in rate_changes
+    ]
+    for transaction in transactions:
+        transaction_date = timezone.localtime(transaction.date).date()
+        if transaction_date > as_of_date:
+            break
+        events.append((transaction_date, 1, transaction))
+    events.sort(key=lambda event: (event[0], event[1]))
+
+    for event_date, event_type, event in events:
+        if previous_date is not None:
+            elapsed_days = (event_date - previous_date).days
+            interest += principal * annual_rate * elapsed_days / Decimal('365')
+
+        if event_type == 0:
+            annual_rate = event.annual_yield_rate / Decimal('100')
+        else:
+            amount = event.quantity * event.price
+            if event.action in ['BUY', 'DEPOSIT']:
+                principal += amount
+            elif event.action in ['SELL', 'WITHDRAWAL']:
+                principal -= amount
+        previous_date = event_date
+
+    if previous_date is not None:
+        elapsed_days = (as_of_date - previous_date).days
+        interest += principal * annual_rate * elapsed_days / Decimal('365')
+
+    return principal, principal + interest
 
 
 def get_current_price(ticker, asset_type):
@@ -144,7 +207,12 @@ def perform_snapshot(user):
         
         # Fetch Price
         price = None
-        if current_qty <= 0:
+        if asset.asset_type == 'SAVINGS':
+            _, current_qty = calculate_savings_balance(asset, today)
+            asset.latest_quantity = current_qty
+            asset.save(update_fields=['latest_quantity'])
+            price = Decimal('1.0')
+        elif current_qty <= 0:
             price = Decimal('0.0')
         elif asset.asset_type == 'FIAT' and asset.ticker.upper() == 'MXN':
             price = Decimal('1.0')
