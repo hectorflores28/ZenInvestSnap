@@ -11,3 +11,14 @@ services:
     command: >
       /bin/sh -c "python zen_invest_snap/manage.py migrate --noinput && exec python zen_invest_snap/manage.py runserver 0.0.0.0:8000"
     restart: always
+  scheduler:
+    build: .
+    container_name: zen_invest_scheduler
+    volumes:
+      - .:/app
+    env_file:
+      - .env
+    depends_on:
+      - web
+    command: python zen_invest_snap/manage.py run_daily_snapshot --daily
+    restart: unless-stopped
