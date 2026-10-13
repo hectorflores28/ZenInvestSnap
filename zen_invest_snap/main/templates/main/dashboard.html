@@ -357,7 +357,7 @@
                                 Sync Portafolio
                             </button>
                         </form>
-                        <span class="sync-description">Actualiza saldos de Bitso y precios del mercado; guarda el valor diario.</span>
+                        <span class="sync-description">Actualiza precios públicos de tus activos y guarda el valor diario. Las cantidades salen de tus transacciones.</span>
                     </div>
                 </div>
 
@@ -409,11 +409,11 @@
                     
                     <ul class="asset-list">
                         {% for asset in source.assets_detail %}
-                            {% if asset.value > 0 or asset.quantity > 0 or asset.type == 'SAVINGS' %}
                             <li class="asset-item">
                                 <div class="asset-main">
                                     <span class="asset-ticker">{{ asset.ticker }}</span>
                                     <span class="asset-name">{{ asset.name }}</span>
+                                    <a class="asset-price" href="{% url 'edit_asset' asset.id %}">Editar activo</a>
                                 </div>
                                 <div class="asset-meta">
                                     {% if asset.price_is_mxn %}
@@ -435,7 +435,6 @@
                                     {% endif %}
                                 </div>
                             </li>
-                            {% endif %}
                         {% empty %}
                             <div style="text-align: center; color: var(--text-secondary); font-size: 0.85rem; padding: 1rem;">
                                 No assets

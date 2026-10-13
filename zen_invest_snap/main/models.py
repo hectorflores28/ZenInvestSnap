@@ -18,12 +18,15 @@ class Asset(models.Model):
         ('OTHER', 'Other'),
     ]
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='assets')
-    ticker = models.CharField(max_length=20, help_text="e.g., AAPL, BTC, MXN")
+    ticker = models.CharField(
+        max_length=20,
+        help_text='Yahoo Finance symbol, e.g. NVDA or BTC.',
+    )
     name = models.CharField(max_length=100)
     asset_type = models.CharField(max_length=20, choices=ASSET_TYPES)
     source = models.CharField(max_length=20, choices=SOURCE_CHOICES, default='OTHER')
     
-    # Snapshot of the latest known quantity (updated by API or Transactions)
+    # Cached balance derived from this asset's transactions.
     latest_quantity = models.DecimalField(max_digits=20, decimal_places=10, default=0.0)
     annual_yield_rate = models.DecimalField(
         max_digits=5,
@@ -33,7 +36,12 @@ class Asset(models.Model):
     )
 
     class Meta:
-        unique_together = ('user', 'ticker')
+        constraints = [
+            models.UniqueConstraint(
+                fields=['user', 'source', 'ticker'],
+                name='unique_asset_ticker_per_source',
+            ),
+        ]
 
     def __str__(self):
         return f"{self.ticker} - {self.name} ({self.source}) - {self.user.username}"

@@ -1,6 +1,7 @@
 from django import forms
 from decimal import Decimal
 from .models import Transaction, Asset
+from .utils import calculate_asset_position
 
 class TransactionForm(forms.ModelForm):
     # Optional: Allow user to select existing asset or provide details for a new one?
@@ -41,23 +42,17 @@ class TransactionForm(forms.ModelForm):
     def clean(self):
         cleaned_data = super().clean()
         asset = cleaned_data.get('asset')
+        action = cleaned_data.get('action')
+        quantity = cleaned_data.get('quantity')
         if asset and asset.asset_type == 'SAVINGS':
             cleaned_data['price'] = Decimal('1')
-            action = cleaned_data.get('action')
-            quantity = cleaned_data.get('quantity')
-            if action == 'WITHDRAWAL' and quantity is not None:
-                principal = Decimal('0')
-                for transaction in asset.transactions.order_by('date', 'pk'):
-                    amount = transaction.quantity * transaction.price
-                    if transaction.action in ['BUY', 'DEPOSIT']:
-                        principal += amount
-                    elif transaction.action in ['SELL', 'WITHDRAWAL']:
-                        principal -= amount
-                if quantity > principal:
-                    self.add_error(
-                        'quantity',
-                        'The withdrawal cannot exceed the current principal balance.',
-                    )
+        if asset and action in ['SELL', 'WITHDRAWAL'] and quantity is not None:
+            available_quantity, _ = calculate_asset_position(asset)
+            if quantity > available_quantity:
+                self.add_error(
+                    'quantity',
+                    'The sale or withdrawal cannot exceed the current balance.',
+                )
         return cleaned_data
 
 class AssetForm(forms.ModelForm):
@@ -68,11 +63,15 @@ class AssetForm(forms.ModelForm):
             'annual_yield_rate': 'Annual yield rate (%)',
         }
         help_texts = {
-            'ticker': 'Use a unique code for each apartado, e.g. MP-CAJITA-EMERGENCIA.',
+            'ticker': (
+                'Use the Yahoo Finance symbol (e.g. NVDA for NVIDIA or BTC for Bitcoin). '
+                'The same symbol can be registered separately for different platforms.'
+            ),
             'annual_yield_rate': 'Simple annual rate; update it to match the rate currently offered.',
         }
 
     def __init__(self, *args, **kwargs):
+        self.user = kwargs.pop('user', None)
         super().__init__(*args, **kwargs)
         self.fields['annual_yield_rate'].required = False
         source = self.data.get('source') if self.is_bound else self.initial.get('source')
@@ -91,6 +90,25 @@ class AssetForm(forms.ModelForm):
 
     def clean(self):
         cleaned_data = super().clean()
+        ticker = cleaned_data.get('ticker')
+        source = cleaned_data.get('source')
+        if ticker:
+            ticker = ticker.upper()
+            cleaned_data['ticker'] = ticker
+        if self.user and ticker and source:
+            duplicate_assets = Asset.objects.filter(
+                user=self.user,
+                ticker=ticker,
+                source=source,
+            )
+            if self.instance.pk:
+                duplicate_assets = duplicate_assets.exclude(pk=self.instance.pk)
+            if duplicate_assets.exists():
+                self.add_error(
+                    'ticker',
+                    'This ticker is already registered for this platform.',
+                )
+
         asset_type = cleaned_data.get('asset_type')
         rate = cleaned_data.get('annual_yield_rate')
         if asset_type == 'SAVINGS':

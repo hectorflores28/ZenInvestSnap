@@ -5,10 +5,11 @@ from django.contrib import messages
 from django.http import JsonResponse
 from django.views.decorators.http import require_GET, require_POST
 from django.utils import timezone
-from .models import Asset, DailySnapshot, PortfolioValue, SavingsRateChange, Transaction
+from .models import Asset, DailySnapshot, PortfolioValue, SavingsRateChange
 from .forms import TransactionForm, AssetForm
 from .utils import (
     ExchangeRateError,
+    calculate_asset_position,
     calculate_savings_balance,
     get_usd_mxn_rate,
     is_usd_quoted,
@@ -34,7 +35,7 @@ def add_transaction(request):
 @login_required
 def add_asset(request):
     if request.method == 'POST':
-        form = AssetForm(request.POST)
+        form = AssetForm(request.POST, user=request.user)
         if form.is_valid():
             asset = form.save(commit=False)
             asset.user = request.user
@@ -48,7 +49,7 @@ def add_asset(request):
             messages.success(request, 'Asset added!')
             return redirect('dashboard')
     else:
-        form = AssetForm()
+        form = AssetForm(user=request.user)
     return render(request, 'main/form_page.html', {'form': form, 'title': 'Add New Asset'})
 
 
@@ -57,7 +58,7 @@ def edit_asset(request, asset_id):
     asset = get_object_or_404(Asset, pk=asset_id, user=request.user)
     if request.method == 'POST':
         previous_rate = asset.annual_yield_rate
-        form = AssetForm(request.POST, instance=asset)
+        form = AssetForm(request.POST, instance=asset, user=request.user)
         if form.is_valid():
             asset = form.save()
             if asset.asset_type == 'SAVINGS' and asset.annual_yield_rate != previous_rate:
@@ -69,7 +70,7 @@ def edit_asset(request, asset_id):
             messages.success(request, 'Asset updated!')
             return redirect('dashboard')
     else:
-        form = AssetForm(instance=asset)
+        form = AssetForm(instance=asset, user=request.user)
     return render(request, 'main/form_page.html', {'form': form, 'title': 'Edit Asset'})
 
 
@@ -125,16 +126,20 @@ def dashboard(request):
                 price_is_mxn = True
             else:
                 invested_principal = None
-                qty = asset.latest_quantity
+                qty, _ = calculate_asset_position(asset)
 
-                price_is_mxn = bool(
+                price_is_mxn = qty <= 0 or bool(
                     snapshot
                     and (
                         not is_usd_quoted(asset)
                         or snapshot.currency_normalized
                     )
                 )
-                current_price = snapshot.closing_price if price_is_mxn else Decimal('0.0')
+                current_price = (
+                    snapshot.closing_price
+                    if snapshot and price_is_mxn
+                    else Decimal('0.0')
+                )
                 current_value = qty * current_price
                 if qty > 0 and is_usd_quoted(asset) and not price_is_mxn:
                     needs_currency_sync = True
@@ -143,23 +148,7 @@ def dashboard(request):
             if invested_principal is not None:
                 asset_cost = invested_principal
             else:
-                asset_txs = Transaction.objects.filter(
-                    asset=asset,
-                    user=request.user,
-                ).order_by('date')
-                asset_qty = Decimal('0.0')
-                asset_cost = Decimal('0.0')
-                for tx in asset_txs:
-                    if tx.action in ['BUY', 'DEPOSIT']:
-                        asset_cost += tx.quantity * tx.price
-                        asset_qty += tx.quantity
-                    elif tx.action in ['SELL', 'WITHDRAWAL']:
-                        if asset_qty > 0:
-                            avg = asset_cost / asset_qty
-                            asset_cost -= tx.quantity * avg
-                            asset_qty -= tx.quantity
-                        else:
-                            asset_qty -= tx.quantity
+                _, asset_cost = calculate_asset_position(asset)
 
             source_data['total_value'] += current_value
             overall_invested_calculated += asset_cost
@@ -215,7 +204,7 @@ def sync_data(request):
     else:
         messages.warning(
             request,
-            'Some USD prices could not be converted. Their values remain pending until a successful sync.',
+            'Some asset prices could not be retrieved or converted to MXN. Their values remain pending until a successful sync.',
         )
     return redirect('dashboard')
 

@@ -1,6 +1,6 @@
 import json
 from decimal import Decimal
-from unittest.mock import patch
+from unittest.mock import PropertyMock, patch
 
 from django.contrib.auth.models import User
 from django.test import RequestFactory, TestCase
@@ -10,6 +10,65 @@ from django.utils import timezone
 from .models import Asset, DailySnapshot, PortfolioValue, SavingsRateChange, Transaction
 from .utils import ExchangeRateError
 from .views import exchange_rate
+
+
+class AssetManagementTests(TestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(username='investor', password='test-password')
+        self.client.force_login(self.user)
+        self.asset = Asset.objects.create(
+            user=self.user,
+            ticker='NVIDIA',
+            name='NVIDIA',
+            asset_type='CRYPTO',
+            source='GBM',
+        )
+
+    def test_asset_can_be_corrected_to_the_public_market_symbol_and_type(self):
+        response = self.client.post(
+            reverse('edit_asset', args=[self.asset.pk]),
+            {
+                'ticker': 'nvda',
+                'name': 'NVIDIA',
+                'asset_type': 'STOCK',
+                'source': 'GBM',
+                'annual_yield_rate': '0',
+            },
+        )
+
+        self.assertRedirects(
+            response,
+            reverse('dashboard'),
+            fetch_redirect_response=False,
+        )
+        self.asset.refresh_from_db()
+        self.assertEqual(self.asset.ticker, 'NVDA')
+        self.assertEqual(self.asset.asset_type, 'STOCK')
+
+    def test_transaction_form_prevents_selling_more_than_the_registered_balance(self):
+        Transaction.objects.create(
+            user=self.user,
+            asset=self.asset,
+            action='BUY',
+            quantity=Decimal('2'),
+            price=Decimal('100'),
+            date=timezone.now(),
+        )
+        from .forms import TransactionForm
+
+        form = TransactionForm(
+            {
+                'asset': str(self.asset.pk),
+                'action': 'SELL',
+                'quantity': '3',
+                'price': '100',
+                'date': timezone.localtime().strftime('%Y-%m-%dT%H:%M'),
+            },
+            user=self.user,
+        )
+
+        self.assertFalse(form.is_valid())
+        self.assertIn('quantity', form.errors)
 
 
 class ExchangeRateViewTests(TestCase):
@@ -84,6 +143,32 @@ class ExchangeRateUtilityTests(TestCase):
             get_usd_mxn_rate()
 
 
+class CurrentPriceUtilityTests(TestCase):
+    @patch('main.utils.yf.Ticker')
+    def test_crypto_pair_quoted_in_mxn_uses_the_yahoo_usd_symbol(self, ticker):
+        from .utils import get_current_price
+
+        ticker.return_value.fast_info.last_price = 123
+
+        self.assertEqual(get_current_price('BTC-MXN', 'CRYPTO'), Decimal('123'))
+        ticker.assert_called_once_with('BTC-USD')
+
+    @patch('main.utils.yf.Ticker')
+    def test_history_is_used_when_fast_info_raises(self, ticker):
+        from .utils import get_current_price
+
+        ticker_object = ticker.return_value
+        fast_info = PropertyMock(side_effect=KeyError('currentTradingPeriod'))
+        with patch.object(type(ticker_object), 'fast_info', fast_info, create=True):
+            history = ticker_object.history.return_value
+            history.empty = False
+            history.__getitem__.return_value.iloc.__getitem__.return_value = 42
+
+            self.assertEqual(get_current_price('NVDA', 'STOCK'), Decimal('42'))
+
+        ticker_object.history.assert_called_once_with(period='1d')
+
+
 class PortfolioCurrencyTests(TestCase):
     def setUp(self):
         self.user = User.objects.create_user(username='investor', password='test-password')
@@ -104,11 +189,10 @@ class PortfolioCurrencyTests(TestCase):
             date=timezone.now(),
         )
 
-    @patch('bitso.provider.BitsoProvider.get_holdings', return_value={})
     @patch('main.utils.get_current_price', return_value=Decimal('10'))
     @patch('main.utils.get_usd_mxn_rate', return_value=Decimal('18'))
     def test_sync_stores_usd_quotes_and_portfolio_totals_in_mxn(
-        self, get_rate, get_current_price, get_holdings
+        self, get_rate, get_current_price
     ):
         from .utils import perform_snapshot
 
@@ -124,11 +208,10 @@ class PortfolioCurrencyTests(TestCase):
         get_rate.assert_called_once_with()
         get_current_price.assert_called_once_with('AAPL', 'STOCK')
 
-    @patch('bitso.provider.BitsoProvider.get_holdings', return_value={})
     @patch('main.utils.get_current_price', return_value=Decimal('10'))
     @patch('main.utils.get_usd_mxn_rate', side_effect=ExchangeRateError('Offline'))
     def test_sync_does_not_relabel_an_old_usd_snapshot_as_mxn(
-        self, get_rate, get_current_price, get_holdings
+        self, get_rate, get_current_price
     ):
         from datetime import timedelta
 
@@ -174,11 +257,10 @@ class MxnQuotedAssetTests(TestCase):
             date=timezone.now(),
         )
 
-    @patch('bitso.provider.BitsoProvider.get_holdings', return_value={})
-    @patch('main.utils.get_usd_mxn_rate')
     @patch('main.utils.get_current_price', return_value=Decimal('1000000'))
-    def test_mxn_quoted_crypto_does_not_require_usd_conversion(
-        self, get_current_price, get_rate, get_holdings
+    @patch('main.utils.get_usd_mxn_rate', return_value=Decimal('18'))
+    def test_mxn_quoted_crypto_is_converted_from_yahoo_usd(
+        self, get_rate, get_current_price
     ):
         from .utils import perform_snapshot
 
@@ -186,11 +268,76 @@ class MxnQuotedAssetTests(TestCase):
 
         snapshot = DailySnapshot.objects.get(asset=self.asset)
         portfolio = PortfolioValue.objects.get(user=self.user)
-        self.assertEqual(snapshot.closing_price, Decimal('1000000'))
+        self.assertEqual(snapshot.closing_price, Decimal('18000000'))
         self.assertTrue(snapshot.currency_normalized)
-        self.assertEqual(portfolio.total_market_value, Decimal('10.00'))
+        self.assertEqual(portfolio.total_market_value, Decimal('180.00'))
         get_current_price.assert_called_once_with('BTC-MXN', 'CRYPTO')
-        get_rate.assert_not_called()
+        get_rate.assert_called_once_with()
+
+    @patch('main.utils.get_current_price', return_value=Decimal('1000000'))
+    @patch('main.utils.get_usd_mxn_rate', return_value=Decimal('18'))
+    def test_same_crypto_on_different_platforms_keeps_separate_transaction_balances(
+        self, get_rate, get_current_price
+    ):
+        from datetime import timedelta
+
+        from .utils import perform_snapshot
+
+        bitso_asset = Asset.objects.create(
+            user=self.user,
+            ticker='BTC-MXN',
+            name='Bitcoin en Bitso',
+            asset_type='CRYPTO',
+            source='BITSO',
+            latest_quantity=Decimal('0.5'),
+        )
+        bought_at = timezone.now() - timedelta(days=1)
+        Transaction.objects.create(
+            user=self.user,
+            asset=bitso_asset,
+            action='BUY',
+            quantity=Decimal('0.5'),
+            price=Decimal('1000000'),
+            date=bought_at,
+        )
+        Transaction.objects.create(
+            user=self.user,
+            asset=bitso_asset,
+            action='SELL',
+            quantity=Decimal('0.5'),
+            price=Decimal('1100000'),
+            date=bought_at + timedelta(hours=1),
+        )
+
+        self.assertTrue(perform_snapshot(self.user))
+
+        bitso_asset.refresh_from_db()
+        self.asset.refresh_from_db()
+        mercado_pago_snapshot = DailySnapshot.objects.get(asset=self.asset)
+        bitso_snapshot = DailySnapshot.objects.get(asset=bitso_asset)
+        portfolio = PortfolioValue.objects.get(user=self.user)
+        self.assertEqual(self.asset.latest_quantity, Decimal('0.00001'))
+        self.assertEqual(bitso_asset.latest_quantity, Decimal('0'))
+        self.assertEqual(mercado_pago_snapshot.closing_price, Decimal('18000000'))
+        self.assertEqual(bitso_snapshot.closing_price, Decimal('0'))
+        self.assertEqual(portfolio.total_market_value, Decimal('180.00'))
+        get_current_price.assert_called_once_with('BTC-MXN', 'CRYPTO')
+        get_rate.assert_called_once_with()
+
+        from .views import dashboard
+
+        request = RequestFactory().get(reverse('dashboard'))
+        request.user = self.user
+        with patch(
+            'main.views.render',
+            side_effect=lambda request, template, context: context,
+        ):
+            dashboard_context = dashboard(request)
+        bitso_data = next(
+            source for source in dashboard_context['dashboard_data']
+            if source['source_code'] == 'BITSO'
+        )
+        self.assertEqual(bitso_data['assets_detail'][0]['quantity'], Decimal('0'))
 
 
 class SavingsYieldTests(TestCase):
@@ -269,8 +416,7 @@ class SavingsYieldTests(TestCase):
         self.assertEqual(principal, Decimal('1000'))
         self.assertEqual(balance, Decimal('1000') + expected_interest)
 
-    @patch('bitso.provider.BitsoProvider.get_holdings', return_value={})
-    def test_sync_saves_savings_balance_as_a_normalized_mxn_snapshot(self, get_holdings):
+    def test_sync_saves_savings_balance_as_a_normalized_mxn_snapshot(self):
         from .utils import perform_snapshot
 
         Transaction.objects.create(

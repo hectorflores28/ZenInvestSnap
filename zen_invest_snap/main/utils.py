@@ -41,15 +41,13 @@ def get_usd_mxn_rate():
 
 
 def is_usd_quoted(asset):
-    """Yahoo Finance quotes are USD unless the ticker indicates MXN."""
+    """Return whether the price fetched for an asset needs USD/MXN conversion."""
     ticker = asset.ticker.upper()
-    return (
-        (asset.asset_type == 'FIAT' and ticker == 'USD')
-        or (
-            asset.asset_type in ['STOCK', 'ETF', 'CRYPTO']
-            and not ticker.endswith(('.MX', '-MXN'))
-        )
-    )
+    if asset.asset_type == 'FIAT':
+        return ticker == 'USD'
+    if asset.asset_type == 'CRYPTO':
+        return True
+    return asset.asset_type in ['STOCK', 'ETF'] and not ticker.endswith('.MX')
 
 
 def calculate_savings_balance(asset, as_of_date=None):
@@ -104,68 +102,89 @@ def calculate_savings_balance(asset, as_of_date=None):
     return principal, principal + interest
 
 
+def calculate_asset_position(asset):
+    """Calculate an asset's remaining quantity and invested cost from its transactions."""
+    quantity = Decimal('0')
+    invested_cost = Decimal('0')
+    transactions = asset.transactions.filter(user=asset.user).order_by('date', 'pk')
+
+    for transaction in transactions:
+        amount = transaction.quantity * transaction.price
+        if transaction.action in ['BUY', 'DEPOSIT']:
+            quantity += transaction.quantity
+            invested_cost += amount
+        elif transaction.action in ['SELL', 'WITHDRAWAL']:
+            if quantity > 0:
+                sold_quantity = min(transaction.quantity, quantity)
+                average_cost = invested_cost / quantity
+                invested_cost -= sold_quantity * average_cost
+                quantity -= sold_quantity
+
+    return quantity, invested_cost
+
+
 def get_current_price(ticker, asset_type):
     """
     Fetches the current price of an asset based on its type.
     For STOCK, ETF, and CRYPTO, it uses yfinance.
     """
     if asset_type in ['STOCK', 'ETF', 'CRYPTO']:
+        lookup_ticker = ticker.upper()
+        if asset_type == 'CRYPTO':
+            crypto, separator, quote_currency = lookup_ticker.partition('-')
+            if not separator or quote_currency == 'MXN':
+                lookup_ticker = f'{crypto}-USD'
+
         try:
-            lookup_ticker = ticker
-            if asset_type == 'CRYPTO' and '-' not in ticker:
-                lookup_ticker = f"{ticker}-USD"
-            
             ticker_obj = yf.Ticker(lookup_ticker)
-            price = ticker_obj.fast_info.last_price
-            if price is None:
-                 hist = ticker_obj.history(period="1d")
-                 if not hist.empty:
-                     price = hist['Close'].iloc[-1]
-            
-            if price:
-                return Decimal(str(price))
-        except Exception as e:
-            print(f"Error fetching price for {ticker}: {e}")
+        except Exception:
+            logger.warning(
+                'Unable to initialize Yahoo Finance for %s.',
+                ticker,
+                exc_info=True,
+            )
             return None
+        try:
+            price = ticker_obj.fast_info.last_price
+        except Exception:
+            logger.debug('Yahoo fast quote unavailable for %s.', lookup_ticker, exc_info=True)
+            price = None
+
+        if price is not None:
+            try:
+                decimal_price = Decimal(str(price))
+                if decimal_price.is_finite() and decimal_price > 0:
+                    return decimal_price
+            except (InvalidOperation, TypeError, ValueError):
+                pass
+
+        try:
+            history = ticker_obj.history(period='1d')
+            if not history.empty:
+                decimal_price = Decimal(str(history['Close'].iloc[-1]))
+                if decimal_price.is_finite() and decimal_price > 0:
+                    return decimal_price
+        except Exception:
+            logger.warning(
+                'Unable to fetch price for %s from Yahoo Finance.',
+                ticker,
+                exc_info=True,
+            )
+            return None
+
+        logger.warning('No valid Yahoo Finance price found for %s.', ticker)
     return None
+
 
 def perform_snapshot(user):
     """
     Core logic to sync and calculate portfolio status for a specific user.
     """
-    from bitso.provider import BitsoProvider
     from .models import Asset, DailySnapshot, PortfolioValue
     
     today = timezone.localtime().date()
-    
-    # 1. Sync Holdings (Placeholder for multi-user keys, using provider logic)
-    # In a real app, BitsoProvider would take user credentials.
-    providers = {
-        'BITSO': BitsoProvider(),
-    }
-    
-    for source, provider in providers.items():
-        try:
-            holdings = provider.get_holdings()
-            for ticker, qty in holdings.items():
-                asset, created = Asset.objects.get_or_create(
-                    user=user,
-                    ticker=ticker,
-                    source=source,
-                    defaults={
-                        'name': f"{ticker} ({source})",
-                        'asset_type': 'CRYPTO' if source == 'BITSO' and ticker != 'MXN' else 'FIAT',
-                        'latest_quantity': qty
-                    }
-                )
-                if not created:
-                    asset.latest_quantity = qty
-                    asset.save()
-        except:
-            # Skip if provider fails
-            pass
 
-    # 2. Update Prices and Snapshots
+    # Update public prices and transaction-derived balances for registered assets.
     total_market_value = Decimal('0.0')
     total_invested = Decimal('0.0')
     currency_normalized = True
@@ -179,31 +198,9 @@ def perform_snapshot(user):
             logger.warning('Unable to get USD/MXN rate; using saved MXN snapshots where available.')
     
     for asset in assets:
-        # Calculate Cost Basis from Transactions
-        txs = asset.transactions.filter(user=user).order_by('date')
-        calc_qty = Decimal('0.0')
-        calc_cost = Decimal('0.0')
-        
-        for tx in txs:
-            if tx.action in ['BUY', 'DEPOSIT']:
-                calc_cost += tx.quantity * tx.price
-                calc_qty += tx.quantity
-            elif tx.action in ['SELL', 'WITHDRAWAL']:
-                if calc_qty > 0:
-                    avg_price = calc_cost / calc_qty
-                    cost_reduction = tx.quantity * avg_price
-                    calc_cost -= cost_reduction
-                    calc_qty -= tx.quantity
-                else:
-                    calc_qty -= tx.quantity
-        
-        # Determine Quantity to use
-        if asset.source in providers:
-            current_qty = asset.latest_quantity
-        else:
-            current_qty = calc_qty
-            asset.latest_quantity = calc_qty
-            asset.save()
+        current_qty, calc_cost = calculate_asset_position(asset)
+        asset.latest_quantity = current_qty
+        asset.save(update_fields=['latest_quantity'])
         
         # Fetch Price
         price = None
@@ -247,7 +244,7 @@ def perform_snapshot(user):
         else:
             currency_normalized = False
             logger.warning(
-                'Skipping snapshot for %s because its USD price could not be converted to MXN.',
+                'Skipping snapshot for %s because a valid MXN price could not be retrieved.',
                 asset.ticker,
             )
             price = Decimal('0.0')
@@ -255,7 +252,7 @@ def perform_snapshot(user):
         total_market_value += (current_qty * price)
         total_invested += calc_cost
 
-    # 3. Save Portfolio Global Entry
+    # Save the user's daily portfolio entry.
     PortfolioValue.objects.update_or_create(
         user=user,
         date=today,
