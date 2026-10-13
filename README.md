@@ -1,5 +1,7 @@
 # 📈 ZenInvestSnap: Seguimiento de Inversiones Automatizado con Django
 
+![Portafolio Dashboard](public/screenshot.png)
+
 zen-invest-snap (directorio proyecto)
 .env
 README.md
