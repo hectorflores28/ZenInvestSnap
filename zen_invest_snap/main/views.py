@@ -158,6 +158,14 @@ def dashboard(request):
                 'id': asset.id,
                 'name': asset.name,
                 'quantity': qty,
+                'quantity_display': format(
+                    qty.quantize(
+                        Decimal('0.0000000001')
+                        if asset.asset_type == 'CRYPTO'
+                        else Decimal('0.0001')
+                    ).normalize(),
+                    'f',
+                ),
                 'price': current_price,
                 'value': current_value,
                 'invested': asset_cost,

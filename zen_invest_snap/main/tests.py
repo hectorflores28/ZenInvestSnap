@@ -12,6 +12,19 @@ from .utils import ExchangeRateError
 from .views import exchange_rate
 
 
+class DailySnapshotScheduleTests(TestCase):
+    def test_next_run_is_midnight_in_the_django_timezone(self):
+        from datetime import datetime, timezone as datetime_timezone
+
+        from .management.commands.run_daily_snapshot import Command
+
+        noon = datetime(2026, 10, 13, 12, tzinfo=datetime_timezone.utc)
+        before_midnight = datetime(2026, 10, 13, 23, 59, 59, tzinfo=datetime_timezone.utc)
+
+        self.assertEqual(Command.seconds_until_next_run(noon), 12 * 60 * 60)
+        self.assertEqual(Command.seconds_until_next_run(before_midnight), 1)
+
+
 class AssetManagementTests(TestCase):
     def setUp(self):
         self.user = User.objects.create_user(username='investor', password='test-password')
@@ -69,6 +82,42 @@ class AssetManagementTests(TestCase):
 
         self.assertFalse(form.is_valid())
         self.assertIn('quantity', form.errors)
+
+    def test_crypto_quantity_display_shows_small_balances_without_trailing_zeros(self):
+        from .views import dashboard
+
+        crypto = Asset.objects.create(
+            user=self.user,
+            ticker='BTC',
+            name='Bitcoin',
+            asset_type='CRYPTO',
+            source='MERCADO_PAGO',
+        )
+        Transaction.objects.create(
+            user=self.user,
+            asset=crypto,
+            action='BUY',
+            quantity=Decimal('0.0000025600'),
+            price=Decimal('1000000'),
+            date=timezone.now(),
+        )
+        request = RequestFactory().get(reverse('dashboard'))
+        request.user = self.user
+        with patch(
+            'main.views.render',
+            side_effect=lambda request, template, context: context,
+        ):
+            context = dashboard(request)
+
+        mercado_pago = next(
+            source for source in context['dashboard_data']
+            if source['source_code'] == 'MERCADO_PAGO'
+        )
+        bitcoin = next(
+            asset for asset in mercado_pago['assets_detail']
+            if asset['ticker'] == 'BTC'
+        )
+        self.assertEqual(bitcoin['quantity_display'], '0.00000256')
 
 
 class ExchangeRateViewTests(TestCase):

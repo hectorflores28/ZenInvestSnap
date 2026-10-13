@@ -429,9 +429,14 @@
                                         <div class="asset-price">Rendimiento: <span class="money-value" data-mxn-value="{{ asset.yield_earned }}">{{ asset.yield_earned|floatformat:2 }}</span></div>
                                         <a class="asset-price" href="{% url 'edit_asset' asset.id %}">Editar tasa/apartado</a>
                                     {% elif asset.price_is_mxn %}
-                                        <div class="asset-price">{{ asset.quantity|floatformat:4 }} units @ <span class="money-value" data-mxn-value="{{ asset.price }}">{{ asset.price|floatformat:2 }}</span></div>
+                                        <div class="asset-price">
+                                            {{ asset.quantity_display }} units @
+                                            <span class="money-value" data-mxn-value="{{ asset.price }}">{{ asset.price|floatformat:2 }}</span>
+                                        </div>
                                     {% else %}
-                                        <div class="asset-price">{{ asset.quantity|floatformat:4 }} units · price pending sync</div>
+                                        <div class="asset-price">
+                                            {{ asset.quantity_display }} units · price pending sync
+                                        </div>
                                     {% endif %}
                                 </div>
                             </li>
